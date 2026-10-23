@@ -6,6 +6,44 @@ static GFont s_time_font, s_date_font, s_battery_font;
 static char s_hour[3], s_minute[3], s_day[3];
 static const char *s_weekday, *s_month;
 static uint8_t s_battery;
+static GDrawCommandImage *s_shoe;
+static GFont s_steps_small_font, s_steps_tiny_font;
+static char s_steps[12] = "--";
+
+static bool scale_shoe(GDrawCommand *command, uint32_t index, void *context) {
+  const int source_size = *(int *)context;
+  for (uint16_t i = 0; i < gdraw_command_get_num_points(command); ++i) {
+    GPoint point = gdraw_command_get_point(command, i);
+    point.x = (point.x * 22 + source_size / 2) / source_size;
+    point.y = (point.y * 22 + source_size / 2) / source_size;
+    gdraw_command_set_point(command, i, point);
+  }
+  const uint8_t stroke = gdraw_command_get_stroke_width(command);
+  if (stroke) {
+    int scaled = (stroke * 22 + source_size / 2) / source_size;
+    gdraw_command_set_stroke_width(command, scaled > 0 ? scaled : 1);
+  }
+  return true;
+}
+
+static void update_steps(void) {
+  time_t now = time(NULL);
+  HealthServiceAccessibilityMask access = health_service_metric_accessible(
+      HealthMetricStepCount, time_start_of_today(), now);
+  if (access & HealthServiceAccessibilityMaskAvailable) {
+    HealthValue steps = health_service_sum_today(HealthMetricStepCount);
+    snprintf(s_steps, sizeof(s_steps), "%ld", (long)(steps < 0 ? 0 : steps));
+  } else {
+    snprintf(s_steps, sizeof(s_steps), "--");
+  }
+  if (s_canvas)
+    layer_mark_dirty(s_canvas);
+}
+
+static void health_handler(HealthEventType event, void *context) {
+  if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate)
+    update_steps();
+}
 
 static GColor cyan(void) { return GColorFromHEX(0x00ffff); }
 static GColor red(void) { return GColorFromHEX(0xff0000); }
@@ -120,6 +158,22 @@ static void draw_face(Layer *layer, GContext *ctx) {
     graphics_draw_line(ctx, GPoint(left, bottom), GPoint(left, top));
   }
 
+  if (s_shoe)
+    gdraw_command_image_draw(ctx, s_shoe, GPoint(32, 140));
+  GFont steps_font = s_battery_font;
+  int steps_y = 156;
+  if (text_width(s_steps, steps_font) > 46) {
+    steps_font = s_steps_small_font;
+    steps_y = 160;
+  }
+  if (text_width(s_steps, steps_font) > 46) {
+    steps_font = s_steps_tiny_font;
+    steps_y = 166;
+  }
+  graphics_context_set_text_color(ctx, cyan());
+  graphics_draw_text(ctx, s_steps, steps_font, GRect(20, steps_y, 46, 27),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+
   graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
   for (int i = 0; i < 3; ++i) {
@@ -160,6 +214,7 @@ static void update_time(struct tm *now) {
 
 static void tick_handler(struct tm *now, TimeUnits changed) {
   update_time(now);
+  update_steps();
 }
 
 static void battery_handler(BatteryChargeState state) {
@@ -175,6 +230,20 @@ static void window_load(Window *window) {
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_HEAVY_24));
   s_battery_font =
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_22));
+  s_steps_small_font =
+      fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_18));
+  s_steps_tiny_font =
+      fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_12));
+  s_shoe = gdraw_command_image_create_with_resource(RESOURCE_ID_SHOE_CYAN);
+  if (s_shoe) {
+    GSize size = gdraw_command_image_get_bounds_size(s_shoe);
+    int source_size = size.w > size.h ? size.w : size.h;
+    if (source_size > 0) {
+      gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_shoe),
+                                scale_shoe, &source_size);
+      gdraw_command_image_set_bounds_size(s_shoe, GSize(22, 22));
+    }
+  }
   Layer *root = window_get_root_layer(window);
   s_canvas = layer_create(layer_get_bounds(root));
   if (!s_canvas) {
@@ -186,9 +255,18 @@ static void window_load(Window *window) {
   time_t now = time(NULL);
   update_time(localtime(&now));
   battery_handler(battery_state_service_peek());
+  update_steps();
 }
 
 static void window_unload(Window *window) {
+  if (s_shoe) {
+    gdraw_command_image_destroy(s_shoe);
+    s_shoe = NULL;
+  }
+  if (s_steps_small_font)
+    fonts_unload_custom_font(s_steps_small_font);
+  if (s_steps_tiny_font)
+    fonts_unload_custom_font(s_steps_tiny_font);
   if (s_canvas) {
     layer_destroy(s_canvas);
     s_canvas = NULL;
@@ -211,7 +289,9 @@ int main(void) {
   window_stack_push(s_window, false);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
+  health_service_events_subscribe(health_handler, NULL);
   app_event_loop();
+  health_service_events_unsubscribe();
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
   window_destroy(s_window);
