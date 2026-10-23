@@ -62,13 +62,14 @@ static void draw_face(Layer *layer, GContext *ctx) {
   const int month_width = text_width(s_month, s_date_font);
   const int day_width = text_width(s_day, s_date_font);
   const int gap = 8;
+  const int date_y = 88;
   int x = (w - weekday_width - month_width - day_width - 2 * gap) / 2;
-  draw_text(ctx, s_weekday, s_date_font, GColorWhite, x, 96, weekday_width + 2,
-            30);
+  draw_text(ctx, s_weekday, s_date_font, GColorWhite, x, date_y,
+            weekday_width + 2, 30);
   x += weekday_width + gap;
-  draw_text(ctx, s_month, s_date_font, cyan(), x, 96, month_width + 2, 30);
+  draw_text(ctx, s_month, s_date_font, cyan(), x, date_y, month_width + 2, 30);
   x += month_width + gap;
-  draw_text(ctx, s_day, s_date_font, GColorWhite, x, 96, day_width + 2, 30);
+  draw_text(ctx, s_day, s_date_font, GColorWhite, x, date_y, day_width + 2, 30);
 
   graphics_context_set_stroke_color(ctx, cyan());
   graphics_draw_line(ctx, GPoint(8, 132), GPoint(48, 132));
@@ -107,7 +108,7 @@ static void update_time(struct tm *now) {
                                    "THU", "FRI", "SAT"};
   static const char *months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
                                  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
-  strftime(s_hour, sizeof(s_hour), "%H", now);
+  strftime(s_hour, sizeof(s_hour), "%I", now);
   strftime(s_minute, sizeof(s_minute), "%M", now);
   strftime(s_day, sizeof(s_day), "%d", now);
   s_weekday = weekdays[now->tm_wday];
