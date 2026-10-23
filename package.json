@@ -28,8 +28,8 @@
         },
         {
           "type": "font",
-          "name": "BLENDER_BOOK_24",
-          "file": "fonts/Blender-Pro-Book.ttf",
+          "name": "BLENDER_HEAVY_24",
+          "file": "fonts/BlenderPro-Heavy.ttf",
           "characterRegex": "[A-Z0-9 ]"
         },
         {

@@ -134,7 +134,7 @@ static void window_load(Window *window) {
   s_time_font =
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_68));
   s_date_font =
-      fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_24));
+      fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_HEAVY_24));
   s_battery_font =
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_22));
   Layer *root = window_get_root_layer(window);
