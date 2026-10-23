@@ -84,18 +84,18 @@ static void draw_face(Layer *layer, GContext *ctx) {
     graphics_draw_line(ctx, GPoint(w - 26 + i * 5, 137),
                        GPoint(w - 30 + i * 5, 144));
   }
-  // Tick marks provide a scale; at zero the bar itself remains completely
-  // empty.
-  const int bar_width = w - 16;
-  for (int i = 0; i <= 4; ++i) {
-    const int tick_x = 8 + (bar_width - 1) * i / 4;
-    graphics_draw_line(ctx, GPoint(tick_x, h - 6), GPoint(tick_x, h - 4));
-  }
-  const int fill_width = bar_width * s_battery / 100;
+  // The outline remains visible even when the battery is empty.
+  const GRect bar = GRect(8, h - 18, w - 16, 10);
+  const int interior_width = bar.size.w - 2;
+  const int fill_width = interior_width * s_battery / 100;
   graphics_context_set_fill_color(ctx, red());
   if (fill_width > 0) {
-    graphics_fill_rect(ctx, GRect(8, h - 18, fill_width, 10), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(bar.origin.x + 1, bar.origin.y + 1,
+                                 fill_width, bar.size.h - 2), 0, GCornerNone);
   }
+  graphics_context_set_stroke_color(ctx, red());
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_rect(ctx, bar);
   char percentage[5];
   snprintf(percentage, sizeof(percentage), "%u%%", (unsigned)s_battery);
   const int percentage_width = text_width(percentage, s_battery_font);
