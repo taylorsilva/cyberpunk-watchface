@@ -38,11 +38,16 @@ static void draw_face(Layer *layer, GContext *ctx) {
   // A closed time frame with a clipped bottom-right corner.
   graphics_context_set_stroke_color(ctx, red());
   graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(frame_left, frame_top), GPoint(frame_right, frame_top));
-  graphics_draw_line(ctx, GPoint(frame_right, frame_top), GPoint(frame_right, frame_bottom - 10));
-  graphics_draw_line(ctx, GPoint(frame_right, frame_bottom - 10), GPoint(frame_right - 10, frame_bottom));
-  graphics_draw_line(ctx, GPoint(frame_right - 10, frame_bottom), GPoint(frame_left, frame_bottom));
-  graphics_draw_line(ctx, GPoint(frame_left, frame_bottom), GPoint(frame_left, frame_top));
+  graphics_draw_line(ctx, GPoint(frame_left, frame_top),
+                     GPoint(frame_right, frame_top));
+  graphics_draw_line(ctx, GPoint(frame_right, frame_top),
+                     GPoint(frame_right, frame_bottom - 10));
+  graphics_draw_line(ctx, GPoint(frame_right, frame_bottom - 10),
+                     GPoint(frame_right - 10, frame_bottom));
+  graphics_draw_line(ctx, GPoint(frame_right - 10, frame_bottom),
+                     GPoint(frame_left, frame_bottom));
+  graphics_draw_line(ctx, GPoint(frame_left, frame_bottom),
+                     GPoint(frame_left, frame_top));
 
   const int hour_width = text_width(s_hour, s_time_font);
   const int colon_width = text_width(":", s_time_font);
@@ -54,10 +59,10 @@ static void draw_face(Layer *layer, GContext *ctx) {
   const int ink_left = left_bearing[s_hour[0] - '0'];
   const int ink_right = right_padding[s_minute[1] - '0'];
   // Include the extra pixel used for the synthetic bold hours.
-  const int ink_width = hour_width + colon_width + minute_width + 1 -
-                        ink_left - ink_right;
-  const int time_x = time_frame.origin.x +
-                     (time_frame.size.w - ink_width) / 2 - ink_left;
+  const int ink_width =
+      hour_width + colon_width + minute_width + 1 - ink_left - ink_right;
+  const int time_x =
+      time_frame.origin.x + (time_frame.size.w - ink_width) / 2 - ink_left;
   // All digits have visible rows 27-67 relative to the text origin.
   const int time_y = time_frame.origin.y + (time_frame.size.h - 41) / 2 - 27;
   draw_text(ctx, s_hour, s_time_font, cyan(), time_x, time_y, hour_width + 2,
@@ -97,6 +102,23 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_line(ctx, GPoint(8, 136), GPoint(18, 126));
   graphics_draw_line(ctx, GPoint(8, 136), GPoint(8, h - 33));
   graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
+
+  // Matching inset frames reserve the right column for future content.
+  graphics_context_set_stroke_color(ctx, cyan());
+  graphics_context_set_stroke_width(ctx, 1);
+  for (int i = 0; i < 2; ++i) {
+    const int left = 18 + i * 60;
+    const int top = 137;
+    const int right = left + 49;
+    const int bottom = top + 47;
+    const int clip = 6;
+    graphics_draw_line(ctx, GPoint(left, top), GPoint(right, top));
+    graphics_draw_line(ctx, GPoint(right, top), GPoint(right, bottom - clip));
+    graphics_draw_line(ctx, GPoint(right, bottom - clip),
+                       GPoint(right - clip, bottom));
+    graphics_draw_line(ctx, GPoint(right - clip, bottom), GPoint(left, bottom));
+    graphics_draw_line(ctx, GPoint(left, bottom), GPoint(left, top));
+  }
 
   graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
