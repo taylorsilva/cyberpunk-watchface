@@ -30,20 +30,36 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
+  const GRect time_frame = GRect(8, 8, w - 16, 75);
+  const int frame_left = time_frame.origin.x;
+  const int frame_top = time_frame.origin.y;
+  const int frame_right = frame_left + time_frame.size.w - 1;
+  const int frame_bottom = frame_top + time_frame.size.h - 1;
   // A closed time frame with a clipped bottom-right corner.
   graphics_context_set_stroke_color(ctx, red());
   graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(8, 8), GPoint(w - 9, 8));
-  graphics_draw_line(ctx, GPoint(w - 9, 8), GPoint(w - 9, 72));
-  graphics_draw_line(ctx, GPoint(w - 9, 72), GPoint(w - 19, 82));
-  graphics_draw_line(ctx, GPoint(w - 19, 82), GPoint(8, 82));
-  graphics_draw_line(ctx, GPoint(8, 82), GPoint(8, 8));
+  graphics_draw_line(ctx, GPoint(frame_left, frame_top), GPoint(frame_right, frame_top));
+  graphics_draw_line(ctx, GPoint(frame_right, frame_top), GPoint(frame_right, frame_bottom - 10));
+  graphics_draw_line(ctx, GPoint(frame_right, frame_bottom - 10), GPoint(frame_right - 10, frame_bottom));
+  graphics_draw_line(ctx, GPoint(frame_right - 10, frame_bottom), GPoint(frame_left, frame_bottom));
+  graphics_draw_line(ctx, GPoint(frame_left, frame_bottom), GPoint(frame_left, frame_top));
 
   const int hour_width = text_width(s_hour, s_time_font);
   const int colon_width = text_width(":", s_time_font);
   const int minute_width = text_width(s_minute, s_time_font);
-  const int time_x = (w - hour_width - colon_width - minute_width - 1) / 2;
-  const int time_y = 0;
+  // Ink margins of digits 0-9 in BLENDER_BOOK_68, excluding advance padding.
+  // Recheck these metrics if the time font or its resource size changes.
+  static const uint8_t left_bearing[] = {3, 4, 3, 3, 2, 3, 3, 2, 3, 3};
+  static const uint8_t right_padding[] = {6, 7, 6, 6, 4, 6, 6, 6, 6, 6};
+  const int ink_left = left_bearing[s_hour[0] - '0'];
+  const int ink_right = right_padding[s_minute[1] - '0'];
+  // Include the extra pixel used for the synthetic bold hours.
+  const int ink_width = hour_width + colon_width + minute_width + 1 -
+                        ink_left - ink_right;
+  const int time_x = time_frame.origin.x +
+                     (time_frame.size.w - ink_width) / 2 - ink_left;
+  // All digits have visible rows 27-67 relative to the text origin.
+  const int time_y = time_frame.origin.y + (time_frame.size.h - 41) / 2 - 27;
   draw_text(ctx, s_hour, s_time_font, cyan(), time_x, time_y, hour_width + 2,
             70);
   // Synthetic bold preserves the supplied Book letterforms.
