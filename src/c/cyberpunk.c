@@ -9,18 +9,19 @@ static uint8_t s_battery;
 static GDrawCommandImage *s_shoe;
 static GFont s_steps_small_font, s_steps_tiny_font;
 static char s_steps[12] = "--";
+enum { SHOE_SIZE = 28 };
 
 static bool scale_shoe(GDrawCommand *command, uint32_t index, void *context) {
   const int source_size = *(int *)context;
   for (uint16_t i = 0; i < gdraw_command_get_num_points(command); ++i) {
     GPoint point = gdraw_command_get_point(command, i);
-    point.x = (point.x * 22 + source_size / 2) / source_size;
-    point.y = (point.y * 22 + source_size / 2) / source_size;
+    point.x = (point.x * SHOE_SIZE + source_size / 2) / source_size;
+    point.y = (point.y * SHOE_SIZE + source_size / 2) / source_size;
     gdraw_command_set_point(command, i, point);
   }
   const uint8_t stroke = gdraw_command_get_stroke_width(command);
   if (stroke) {
-    int scaled = (stroke * 22 + source_size / 2) / source_size;
+    int scaled = (stroke * SHOE_SIZE + source_size / 2) / source_size;
     gdraw_command_set_stroke_width(command, scaled > 0 ? scaled : 1);
   }
   return true;
@@ -118,7 +119,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   const int month_width = text_width(s_month, s_date_font);
   const int day_width = text_width(s_day, s_date_font);
   const int gap = 8;
-  const int date_y = 88;
+  const int date_y = 82;
   int x = (w - weekday_width - month_width - day_width - 2 * gap) / 2;
   draw_text(ctx, s_weekday, s_date_font, GColorWhite, x, date_y,
             weekday_width + 2, 30);
@@ -135,10 +136,10 @@ static void draw_face(Layer *layer, GContext *ctx) {
   // Clip the top-left corner and leave the percentage's corner open.
   graphics_context_set_stroke_color(ctx, red());
   graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(18, 126), GPoint(w - 9, 126));
-  graphics_draw_line(ctx, GPoint(w - 9, 126), GPoint(w - 9, h - 50));
-  graphics_draw_line(ctx, GPoint(8, 136), GPoint(18, 126));
-  graphics_draw_line(ctx, GPoint(8, 136), GPoint(8, h - 33));
+  graphics_draw_line(ctx, GPoint(18, 114), GPoint(w - 9, 114));
+  graphics_draw_line(ctx, GPoint(w - 9, 114), GPoint(w - 9, h - 50));
+  graphics_draw_line(ctx, GPoint(8, 124), GPoint(18, 114));
+  graphics_draw_line(ctx, GPoint(8, 124), GPoint(8, h - 33));
   graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
 
   // Matching inset frames reserve the right column for future content.
@@ -146,9 +147,9 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_width(ctx, 1);
   for (int i = 0; i < 2; ++i) {
     const int left = 18 + i * 60;
-    const int top = 137;
+    const int top = 125;
     const int right = left + 49;
-    const int bottom = top + 47;
+    const int bottom = 184;
     const int clip = 6;
     graphics_draw_line(ctx, GPoint(left, top), GPoint(right, top));
     graphics_draw_line(ctx, GPoint(right, top), GPoint(right, bottom - clip));
@@ -159,7 +160,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   }
 
   if (s_shoe)
-    gdraw_command_image_draw(ctx, s_shoe, GPoint(32, 140));
+    gdraw_command_image_draw(ctx, s_shoe, GPoint(29, 131));
   GFont steps_font = s_battery_font;
   int steps_y = 156;
   if (text_width(s_steps, steps_font) > 46) {
@@ -241,7 +242,7 @@ static void window_load(Window *window) {
     if (source_size > 0) {
       gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_shoe),
                                 scale_shoe, &source_size);
-      gdraw_command_image_set_bounds_size(s_shoe, GSize(22, 22));
+      gdraw_command_image_set_bounds_size(s_shoe, GSize(SHOE_SIZE, SHOE_SIZE));
     }
   }
   Layer *root = window_get_root_layer(window);
