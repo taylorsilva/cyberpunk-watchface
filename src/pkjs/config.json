@@ -5,7 +5,7 @@
   },
   {
     "type": "text",
-    "defaultValue": "Choose content for each cyan frame. None hides the frame and its content. Other frames stay in place."
+    "defaultValue": "Choose content for each card. 'None' hides the card and its content. Other card stay in place."
   },
   {
     "type": "section",
@@ -31,6 +31,10 @@
           {
             "label": "Current temperature",
             "value": "3"
+          },
+          {
+            "label": "UV Index",
+            "value": "4"
           }
         ]
       },
@@ -55,6 +59,10 @@
           {
             "label": "Current temperature",
             "value": "3"
+          },
+          {
+            "label": "UV Index",
+            "value": "4"
           }
         ]
       },
@@ -79,6 +87,10 @@
           {
             "label": "Current temperature",
             "value": "3"
+          },
+          {
+            "label": "UV Index",
+            "value": "4"
           }
         ]
       }

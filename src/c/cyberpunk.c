@@ -15,12 +15,21 @@ static GDrawCommandImage *s_bluetooth_disconnected;
 static bool s_connected;
 static GDrawCommandImage *s_weather_icon;
 static char s_temperature[16] = "--°C";
+static char s_uv_index[12] = "--";
 static bool s_js_ready;
 static bool s_weather_pending = true;
 static time_t s_weather_attempt;
-enum { WEATHER_PERSIST_KEY = 1, WEATHER_INTERVAL = 60 * 60 };
+enum { WEATHER_PERSIST_KEY = 1, UV_PERSIST_KEY = 2, WEATHER_INTERVAL = 60 * 60 };
 
-enum { FRAME_NONE, FRAME_STEPS, FRAME_HEART_RATE, FRAME_TEMPERATURE,
+static void load_uv_index(void) {
+  if (persist_exists(UV_PERSIST_KEY)) {
+    int32_t value = persist_read_int(UV_PERSIST_KEY);
+    if (value >= 0 && value <= 100)
+      snprintf(s_uv_index, sizeof(s_uv_index), "%ld", (long)value);
+  }
+}
+
+enum { FRAME_NONE, FRAME_STEPS, FRAME_HEART_RATE, FRAME_TEMPERATURE, FRAME_UV_INDEX,
        FRAME_CONTENT_COUNT, FRAME_SLOT_COUNT = 3, FRAME_PERSIST_BASE = 10 };
 static uint8_t s_frame_contents[FRAME_SLOT_COUNT] = {
     FRAME_STEPS, FRAME_HEART_RATE, FRAME_TEMPERATURE};
@@ -84,6 +93,16 @@ static void weather_received(DictionaryIterator *iter, void *context) {
     if (value >= -150 && value <= 150) {
       snprintf(s_temperature, sizeof(s_temperature), "%ld°C", (long)value);
       persist_write_int(WEATHER_PERSIST_KEY, value);
+      if (s_canvas)
+        layer_mark_dirty(s_canvas);
+    }
+  }
+  Tuple *uv = dict_find(iter, MESSAGE_KEY_UV_INDEX);
+  if (uv && (uv->type == TUPLE_INT || uv->type == TUPLE_UINT) && uv->length == 4) {
+    int32_t value = uv->value->int32;
+    if (value >= 0 && value <= 100) {
+      snprintf(s_uv_index, sizeof(s_uv_index), "%ld", (long)value);
+      persist_write_int(UV_PERSIST_KEY, value);
       if (s_canvas)
         layer_mark_dirty(s_canvas);
     }
@@ -250,12 +269,23 @@ static void draw_weather_content(GContext *ctx, GRect bounds, void *context) {
   draw_frame_value(ctx, bounds, s_weather_icon, s_temperature, true);
 }
 
+static void draw_uv_content(GContext *ctx, GRect bounds, void *context) {
+  (void)context;
+  graphics_context_set_text_color(ctx, cyan());
+  graphics_draw_text(ctx, "UV", s_date_font,
+                     GRect(bounds.origin.x + 2, bounds.origin.y + 1,
+                           bounds.size.w - 4, 30),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  draw_frame_value(ctx, bounds, NULL, s_uv_index, true);
+}
+
 // Indexed by the persisted frame content IDs. None skips border and content.
 static const FrameSlot s_frame_renderers[FRAME_CONTENT_COUNT] = {
     {NULL, NULL},
     {draw_steps_content, NULL},
     {draw_heart_rate_content, NULL},
     {draw_weather_content, NULL},
+    {draw_uv_content, NULL},
 };
 
 static void draw_face(Layer *layer, GContext *ctx) {
@@ -556,6 +586,7 @@ int main(void) {
     if (value >= -150 && value <= 150)
       snprintf(s_temperature, sizeof(s_temperature), "%ld°C", (long)value);
   }
+  load_uv_index();
   app_message_register_inbox_received(weather_received);
   app_message_register_outbox_failed(weather_outbox_failed);
   app_message_open(128, 128);

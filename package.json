@@ -90,7 +90,8 @@
       "JS_READY",
       "FRAME_LEFT",
       "FRAME_MIDDLE",
-      "FRAME_RIGHT"
+      "FRAME_RIGHT",
+      "UV_INDEX"
     ]
   }
 }

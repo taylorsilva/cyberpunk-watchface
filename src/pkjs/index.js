@@ -18,7 +18,7 @@ Pebble.addEventListener('webviewclosed', function(event) {
   frameKeys.forEach(function(key) {
     var value = settings[key];
     if (value && typeof value === 'object') value = value.value;
-    if (/^[0-3]$/.test(String(value))) payload[key] = Number(value);
+    if (/^[0-4]$/.test(String(value))) payload[key] = Number(value);
   });
   if (!Object.keys(payload).length) return;
   Pebble.sendAppMessage(payload, function() {}, function(error) {
@@ -43,26 +43,58 @@ function getWeather() {
       fail('invalid location');
       return;
     }
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' +
-      encodeURIComponent(latitude) + '&longitude=' + encodeURIComponent(longitude) +
-      '&current=temperature_2m&temperature_unit=celsius', true);
-    xhr.timeout = 20000;
-    xhr.onerror = function() { fail('network error'); };
-    xhr.ontimeout = function() { fail('request timed out'); };
-    xhr.onload = function() {
-      if (xhr.status !== 200) { fail('HTTP ' + xhr.status); return; }
-      var value;
-      try {
-        value = JSON.parse(xhr.responseText).current.temperature_2m;
-        if (typeof value !== 'number' || !isFinite(value) || value < -150 || value > 150)
-          throw new Error('invalid temperature');
-      } catch (error) { fail('invalid response'); return; }
-      Pebble.sendAppMessage({TEMPERATURE: Math.round(value)}, function() {
-        fetching = false;
-      }, function(error) { fail('delivery failed: ' + JSON.stringify(error)); });
-    };
-    xhr.send();
+    var coordinates = 'latitude=' + encodeURIComponent(latitude) +
+      '&longitude=' + encodeURIComponent(longitude);
+    var remaining = 2;
+    // Finish only after both independent requests (and their deliveries) settle.
+    function request(url, key, readValue) {
+      var finished = false;
+      function done(reason) {
+        if (finished) return;
+        finished = true;
+        if (reason) console.log('Weather ' + key + ': ' + reason);
+        if (--remaining === 0) fetching = false;
+      }
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.timeout = 20000;
+      xhr.onerror = function() { done('network error'); };
+      xhr.ontimeout = function() { done('request timed out'); };
+      xhr.onload = function() {
+        if (xhr.status !== 200) { done('HTTP ' + xhr.status); return; }
+        var value;
+        try {
+          value = readValue(JSON.parse(xhr.responseText));
+          if (typeof value !== 'number' || !isFinite(value))
+            throw new Error('invalid value');
+        } catch (error) { done('invalid response'); return; }
+        var payload = {};
+        payload[key] = Math.round(value);
+        Pebble.sendAppMessage(payload, function() { done(); },
+          function(error) { done('delivery failed: ' + JSON.stringify(error)); });
+      };
+      xhr.send();
+    }
+    request('https://api.open-meteo.com/v1/forecast?' + coordinates +
+      '&current=temperature_2m&temperature_unit=celsius', 'TEMPERATURE', function(data) {
+        var value = data.current.temperature_2m;
+        if (value < -150 || value > 150) throw new Error('invalid temperature');
+        return value;
+      });
+    request('https://air-quality-api.open-meteo.com/v1/air-quality?' + coordinates +
+      '&hourly=uv_index&timeformat=unixtime&forecast_days=2', 'UV_INDEX', function(data) {
+        var now = Math.floor(Date.now() / 1000);
+        var times = data.hourly.time;
+        var values = data.hourly.uv_index;
+        for (var i = 0; i < times.length; ++i) {
+          if (typeof times[i] === 'number' && times[i] <= now && now < times[i] + 3600) {
+            var value = values[i];
+            if (value < 0 || value > 100) throw new Error('invalid UV index');
+            return value;
+          }
+        }
+        throw new Error('current hour unavailable');
+      });
   }, function(error) { fail('location failed: ' + error.message); },
   {enableHighAccuracy: false, timeout: 15000, maximumAge: 0});
 }
