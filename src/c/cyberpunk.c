@@ -154,11 +154,11 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_line(ctx, GPoint(8, 124), GPoint(8, h - 33));
   graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
 
-  // Matching inset frames reserve the right column for future content.
+  // Matching inset frames fill the three-column layout.
   graphics_context_set_stroke_color(ctx, cyan());
   graphics_context_set_stroke_width(ctx, 1);
-  for (int i = 0; i < 2; ++i) {
-    const int left = 18 + i * 60;
+  for (int i = 0; i < 3; ++i) {
+    const int left = 18 + i * 57;
     const int top = 125;
     const int right = left + 49;
     const int bottom = 184;
