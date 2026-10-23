@@ -7,21 +7,24 @@ static char s_hour[3], s_minute[3], s_day[3];
 static const char *s_weekday, *s_month;
 static uint8_t s_battery;
 static GDrawCommandImage *s_shoe;
+static GDrawCommandImage *s_bluetooth_disconnected;
+static bool s_connected;
 static GFont s_steps_small_font, s_steps_tiny_font;
 static char s_steps[12] = "--";
-enum { SHOE_SIZE = 28 };
+enum { SHOE_SIZE = 28, BLUETOOTH_SIZE = 20 };
 
-static bool scale_shoe(GDrawCommand *command, uint32_t index, void *context) {
-  const int source_size = *(int *)context;
+static bool scale_icon(GDrawCommand *command, uint32_t index, void *context) {
+  const int source_size = ((int *)context)[0];
+  const int target_size = ((int *)context)[1];
   for (uint16_t i = 0; i < gdraw_command_get_num_points(command); ++i) {
     GPoint point = gdraw_command_get_point(command, i);
-    point.x = (point.x * SHOE_SIZE + source_size / 2) / source_size;
-    point.y = (point.y * SHOE_SIZE + source_size / 2) / source_size;
+    point.x = (point.x * target_size + source_size / 2) / source_size;
+    point.y = (point.y * target_size + source_size / 2) / source_size;
     gdraw_command_set_point(command, i, point);
   }
   const uint8_t stroke = gdraw_command_get_stroke_width(command);
   if (stroke) {
-    int scaled = (stroke * SHOE_SIZE + source_size / 2) / source_size;
+    int scaled = (stroke * target_size + source_size / 2) / source_size;
     gdraw_command_set_stroke_width(command, scaled > 0 ? scaled : 1);
   }
   return true;
@@ -120,13 +123,22 @@ static void draw_face(Layer *layer, GContext *ctx) {
   const int day_width = text_width(s_day, s_date_font);
   const int gap = 8;
   const int date_y = 82;
-  int x = (w - weekday_width - month_width - day_width - 2 * gap) / 2;
+  const int date_width = weekday_width + month_width + day_width + 2 * gap;
+  const int bluetooth_x = w - 28;
+  int x = (w - date_width) / 2;
+  if (!s_connected && s_bluetooth_disconnected &&
+      x + date_width + 2 > bluetooth_x - 6) {
+    x = bluetooth_x - 6 - date_width - 2;
+  }
   draw_text(ctx, s_weekday, s_date_font, GColorWhite, x, date_y,
             weekday_width + 2, 30);
   x += weekday_width + gap;
   draw_text(ctx, s_month, s_date_font, cyan(), x, date_y, month_width + 2, 30);
   x += month_width + gap;
   draw_text(ctx, s_day, s_date_font, GColorWhite, x, date_y, day_width + 2, 30);
+  if (!s_connected && s_bluetooth_disconnected)
+    gdraw_command_image_draw(ctx, s_bluetooth_disconnected,
+                            GPoint(bluetooth_x, 88));
 
   char percentage[5];
   snprintf(percentage, sizeof(percentage), "%u%%", (unsigned)s_battery);
@@ -177,10 +189,6 @@ static void draw_face(Layer *layer, GContext *ctx) {
 
   graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
-  for (int i = 0; i < 3; ++i) {
-    graphics_draw_line(ctx, GPoint(w - 26 + i * 5, 137),
-                       GPoint(w - 30 + i * 5, 144));
-  }
   // The outline remains visible even when the battery is empty.
   const GRect bar = GRect(8, h - 18, w - 16, 10);
   const int interior_width = bar.size.w - 2;
@@ -224,6 +232,14 @@ static void battery_handler(BatteryChargeState state) {
     layer_mark_dirty(s_canvas);
 }
 
+static void connection_handler(bool connected) {
+  if (s_connected && !connected)
+    vibes_short_pulse();
+  s_connected = connected;
+  if (s_canvas)
+    layer_mark_dirty(s_canvas);
+}
+
 static void window_load(Window *window) {
   s_time_font =
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_68));
@@ -240,9 +256,24 @@ static void window_load(Window *window) {
     GSize size = gdraw_command_image_get_bounds_size(s_shoe);
     int source_size = size.w > size.h ? size.w : size.h;
     if (source_size > 0) {
+      int scale[] = {source_size, SHOE_SIZE};
       gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_shoe),
-                                scale_shoe, &source_size);
+                                scale_icon, scale);
       gdraw_command_image_set_bounds_size(s_shoe, GSize(SHOE_SIZE, SHOE_SIZE));
+    }
+  }
+  s_bluetooth_disconnected = gdraw_command_image_create_with_resource(
+      RESOURCE_ID_BLUETOOTH_DISCONNECTED);
+  if (s_bluetooth_disconnected) {
+    GSize size = gdraw_command_image_get_bounds_size(s_bluetooth_disconnected);
+    int source_size = size.w > size.h ? size.w : size.h;
+    if (source_size > 0) {
+      int scale[] = {source_size, BLUETOOTH_SIZE};
+      gdraw_command_list_iterate(
+          gdraw_command_image_get_command_list(s_bluetooth_disconnected),
+          scale_icon, scale);
+      gdraw_command_image_set_bounds_size(
+          s_bluetooth_disconnected, GSize(BLUETOOTH_SIZE, BLUETOOTH_SIZE));
     }
   }
   Layer *root = window_get_root_layer(window);
@@ -260,6 +291,10 @@ static void window_load(Window *window) {
 }
 
 static void window_unload(Window *window) {
+  if (s_bluetooth_disconnected) {
+    gdraw_command_image_destroy(s_bluetooth_disconnected);
+    s_bluetooth_disconnected = NULL;
+  }
   if (s_shoe) {
     gdraw_command_image_destroy(s_shoe);
     s_shoe = NULL;
@@ -281,6 +316,7 @@ static void window_unload(Window *window) {
 }
 
 int main(void) {
+  s_connected = connection_service_peek_pebble_app_connection();
   s_window = window_create();
   if (!s_window)
     return 1;
@@ -291,7 +327,10 @@ int main(void) {
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
   health_service_events_subscribe(health_handler, NULL);
+  connection_service_subscribe((ConnectionHandlers){
+      .pebble_app_connection_handler = connection_handler});
   app_event_loop();
+  connection_service_unsubscribe();
   health_service_events_unsubscribe();
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();

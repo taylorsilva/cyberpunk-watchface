@@ -44,6 +44,11 @@
           "file": "pdc/shoe-cyan.pdc"
         },
         {
+          "type": "raw",
+          "name": "BLUETOOTH_DISCONNECTED",
+          "file": "pdc/bluetooth-disconnected.pdc"
+        },
+        {
           "type": "font",
           "name": "BLENDER_BOOK_18",
           "file": "fonts/Blender-Pro-Book.ttf",
