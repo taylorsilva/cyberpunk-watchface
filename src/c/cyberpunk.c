@@ -7,8 +7,8 @@ static char s_hour[3], s_minute[3], s_day[3];
 static const char *s_weekday, *s_month;
 static uint8_t s_battery;
 
-static GColor cyan(void) { return GColorFromHEX(0x00ffd2); }
-static GColor red(void) { return GColorFromHEX(0xff003c); }
+static GColor cyan(void) { return GColorFromHEX(0x00ffff); }
+static GColor red(void) { return GColorFromHEX(0xff0000); }
 
 static int text_width(const char *text, GFont font) {
   return graphics_text_layout_get_content_size(
@@ -24,37 +24,20 @@ static void draw_text(GContext *ctx, const char *text, GFont font, GColor color,
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
 
-// Pebble rounds even stroke widths up; paired hairlines give a true 2px rail.
-static void draw_rail(GContext *ctx, GPoint start, GPoint end) {
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, start, end);
-  if (start.x == end.x) {
-    ++start.x;
-    ++end.x;
-  } else {
-    ++start.y;
-    ++end.y;
-  }
-  graphics_draw_line(ctx, start, end);
-}
-
 static void draw_face(Layer *layer, GContext *ctx) {
   const GRect bounds = layer_get_bounds(layer);
   const int w = bounds.size.w, h = bounds.size.h;
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  // Broken, chamfered rails frame the information without competing with it.
-  graphics_context_set_stroke_color(ctx, cyan());
-  draw_rail(ctx, GPoint(8, 17), GPoint(8, 8));
-  draw_rail(ctx, GPoint(8, 8), GPoint(w - 37, 8));
-  draw_rail(ctx, GPoint(w - 37, 8), GPoint(w - 29, 16));
-  draw_rail(ctx, GPoint(w - 29, 16), GPoint(w - 9, 16));
+  // A closed time frame with a clipped bottom-right corner.
   graphics_context_set_stroke_color(ctx, red());
-  draw_rail(ctx, GPoint(w - 9, 27), GPoint(w - 9, 80));
-  draw_rail(ctx, GPoint(8, 88), GPoint(26, 88));
-  draw_rail(ctx, GPoint(26, 88), GPoint(32, 82));
-  draw_rail(ctx, GPoint(32, 82), GPoint(w - 9, 82));
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_line(ctx, GPoint(8, 8), GPoint(w - 9, 8));
+  graphics_draw_line(ctx, GPoint(w - 9, 8), GPoint(w - 9, 72));
+  graphics_draw_line(ctx, GPoint(w - 9, 72), GPoint(w - 19, 82));
+  graphics_draw_line(ctx, GPoint(w - 19, 82), GPoint(8, 82));
+  graphics_draw_line(ctx, GPoint(8, 82), GPoint(8, 8));
 
   const int hour_width = text_width(s_hour, s_time_font);
   const int colon_width = text_width(":", s_time_font);
@@ -85,13 +68,19 @@ static void draw_face(Layer *layer, GContext *ctx) {
   x += month_width + gap;
   draw_text(ctx, s_day, s_date_font, GColorWhite, x, date_y, day_width + 2, 30);
 
-  graphics_context_set_stroke_color(ctx, cyan());
-  draw_rail(ctx, GPoint(8, 132), GPoint(48, 132));
-  draw_rail(ctx, GPoint(48, 132), GPoint(54, 126));
-  draw_rail(ctx, GPoint(54, 126), GPoint(w - 9, 126));
-  draw_rail(ctx, GPoint(8, 143), GPoint(8, h - 42));
-  draw_rail(ctx, GPoint(8, h - 42), GPoint(17, h - 33));
-  draw_rail(ctx, GPoint(17, h - 33), GPoint(37, h - 33));
+  char percentage[5];
+  snprintf(percentage, sizeof(percentage), "%u%%", (unsigned)s_battery);
+  const int percentage_width = text_width(percentage, s_battery_font);
+  const int percentage_x = w - 8 - percentage_width;
+
+  // Clip the top-left corner and leave the percentage's corner open.
+  graphics_context_set_stroke_color(ctx, red());
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_line(ctx, GPoint(18, 126), GPoint(w - 9, 126));
+  graphics_draw_line(ctx, GPoint(w - 9, 126), GPoint(w - 9, h - 50));
+  graphics_draw_line(ctx, GPoint(8, 136), GPoint(18, 126));
+  graphics_draw_line(ctx, GPoint(8, 136), GPoint(8, h - 33));
+  graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
 
   graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
@@ -113,11 +102,8 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_color(ctx, red());
   graphics_context_set_stroke_width(ctx, 1);
   graphics_draw_rect(ctx, bar);
-  char percentage[5];
-  snprintf(percentage, sizeof(percentage), "%u%%", (unsigned)s_battery);
-  const int percentage_width = text_width(percentage, s_battery_font);
-  draw_text(ctx, percentage, s_battery_font, GColorWhite,
-            w - 8 - percentage_width, h - 46, percentage_width + 1, 26);
+  draw_text(ctx, percentage, s_battery_font, GColorWhite, percentage_x, h - 46,
+            percentage_width + 1, 26);
 }
 
 static void update_time(struct tm *now) {
