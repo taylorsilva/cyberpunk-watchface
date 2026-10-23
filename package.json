@@ -21,6 +21,11 @@
     "resources": {
       "media": [
         {
+          "type": "raw",
+          "name": "CHARGING",
+          "file": "pdc/charging.pdc"
+        },
+        {
           "type": "font",
           "name": "BLENDER_BOOK_68",
           "file": "fonts/Blender-Pro-Book.ttf",

@@ -6,6 +6,8 @@ static GFont s_time_font, s_date_font, s_battery_font;
 static char s_hour[3], s_minute[3], s_day[3];
 static const char *s_weekday, *s_month;
 static uint8_t s_battery;
+static bool s_charging;
+static GDrawCommandImage *s_charging_icon;
 static GDrawCommandImage *s_shoe;
 static GDrawCommandImage *s_heart;
 static GDrawCommandImage *s_bluetooth_disconnected;
@@ -13,7 +15,8 @@ static bool s_connected;
 static GFont s_steps_small_font, s_steps_tiny_font;
 static char s_steps[12] = "--";
 static char s_heart_rate[12] = "--";
-enum { SHOE_SIZE = 28, HEART_SIZE = 28, BLUETOOTH_SIZE = 20 };
+enum { SHOE_SIZE = 28, HEART_SIZE = 28, BLUETOOTH_SIZE = 20,
+       CHARGING_HEIGHT = 20 };
 
 static bool scale_icon(GDrawCommand *command, uint32_t index, void *context) {
   const int source_size = ((int *)context)[0];
@@ -145,15 +148,28 @@ static void draw_face(Layer *layer, GContext *ctx) {
   const int weekday_width = text_width(s_weekday, s_date_font);
   const int month_width = text_width(s_month, s_date_font);
   const int day_width = text_width(s_day, s_date_font);
-  const int gap = 8;
+  const bool show_charging = s_charging && s_charging_icon;
+  const bool show_disconnected = !s_connected && s_bluetooth_disconnected;
+  const int charging_width = show_charging
+      ? gdraw_command_image_get_bounds_size(s_charging_icon).w : 0;
+  const int date_left = show_charging ? 8 + charging_width + 6 : 0;
+  const int bluetooth_x = w - 28;
+  const int date_right = show_disconnected ? bluetooth_x - 6 : w;
+  int gap = 8;
+  const int text_total = weekday_width + month_width + day_width;
+  if (text_total + 2 * gap + 2 > date_right - date_left)
+    gap = (date_right - date_left - text_total - 2) / 2;
+  if (gap < 0)
+    gap = 0;
   const int date_y = 82;
   const int date_width = weekday_width + month_width + day_width + 2 * gap;
-  const int bluetooth_x = w - 28;
   int x = (w - date_width) / 2;
-  if (!s_connected && s_bluetooth_disconnected &&
-      x + date_width + 2 > bluetooth_x - 6) {
-    x = bluetooth_x - 6 - date_width - 2;
-  }
+  if (x + date_width + 2 > date_right)
+    x = date_right - date_width - 2;
+  if (x < date_left)
+    x = date_left;
+  if (show_charging)
+    gdraw_command_image_draw(ctx, s_charging_icon, GPoint(8, 88));
   draw_text(ctx, s_weekday, s_date_font, GColorWhite, x, date_y,
             weekday_width + 2, 30);
   x += weekday_width + gap;
@@ -258,6 +274,7 @@ static void tick_handler(struct tm *now, TimeUnits changed) {
 
 static void battery_handler(BatteryChargeState state) {
   s_battery = state.charge_percent > 100 ? 100 : state.charge_percent;
+  s_charging = state.is_charging;
   if (s_canvas)
     layer_mark_dirty(s_canvas);
 }
@@ -282,6 +299,18 @@ static void window_load(Window *window) {
   s_steps_tiny_font =
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_12));
   s_shoe = gdraw_command_image_create_with_resource(RESOURCE_ID_SHOE);
+  s_charging_icon = gdraw_command_image_create_with_resource(RESOURCE_ID_CHARGING);
+  if (s_charging_icon) {
+    GSize size = gdraw_command_image_get_bounds_size(s_charging_icon);
+    if (size.h > 0) {
+      int scale[] = {size.h, CHARGING_HEIGHT};
+      gdraw_command_list_iterate(
+          gdraw_command_image_get_command_list(s_charging_icon), scale_icon, scale);
+      gdraw_command_image_set_bounds_size(s_charging_icon,
+          GSize((size.w * CHARGING_HEIGHT + size.h / 2) / size.h,
+                CHARGING_HEIGHT));
+    }
+  }
   if (s_shoe) {
     GSize size = gdraw_command_image_get_bounds_size(s_shoe);
     int source_size = size.w > size.h ? size.w : size.h;
@@ -333,6 +362,10 @@ static void window_load(Window *window) {
 }
 
 static void window_unload(Window *window) {
+  if (s_charging_icon) {
+    gdraw_command_image_destroy(s_charging_icon);
+    s_charging_icon = NULL;
+  }
   if (s_heart) {
     gdraw_command_image_destroy(s_heart);
     s_heart = NULL;
