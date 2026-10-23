@@ -1,0 +1,44 @@
+{
+  "name": "cyberpunk",
+  "author": "taylorsilva",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Cyberpunk",
+    "uuid": "d458b770-c302-4674-8561-d0f1d915a184",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "resources": {
+      "media": [
+        {
+          "type": "font",
+          "name": "BLENDER_BOOK_68",
+          "file": "fonts/Blender-Pro-Book.ttf",
+          "characterRegex": "[0-9:]"
+        },
+        {
+          "type": "font",
+          "name": "BLENDER_BOOK_24",
+          "file": "fonts/Blender-Pro-Book.ttf",
+          "characterRegex": "[A-Z0-9 ]"
+        },
+        {
+          "type": "font",
+          "name": "BLENDER_BOOK_22",
+          "file": "fonts/Blender-Pro-Book.ttf",
+          "characterRegex": "[0-9%]"
+        }
+      ]
+    }
+  }
+}
