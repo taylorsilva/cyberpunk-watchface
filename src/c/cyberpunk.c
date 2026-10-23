@@ -20,6 +20,42 @@ static bool s_weather_pending = true;
 static time_t s_weather_attempt;
 enum { WEATHER_PERSIST_KEY = 1, WEATHER_INTERVAL = 60 * 60 };
 
+enum { FRAME_NONE, FRAME_STEPS, FRAME_HEART_RATE, FRAME_TEMPERATURE,
+       FRAME_CONTENT_COUNT, FRAME_SLOT_COUNT = 3, FRAME_PERSIST_BASE = 10 };
+static uint8_t s_frame_contents[FRAME_SLOT_COUNT] = {
+    FRAME_STEPS, FRAME_HEART_RATE, FRAME_TEMPERATURE};
+
+static void load_frame_settings(void) {
+  for (unsigned i = 0; i < FRAME_SLOT_COUNT; ++i) {
+    if (persist_exists(FRAME_PERSIST_BASE + i)) {
+      int32_t value = persist_read_int(FRAME_PERSIST_BASE + i);
+      if (value >= FRAME_NONE && value < FRAME_CONTENT_COUNT)
+        s_frame_contents[i] = value;
+    }
+  }
+}
+
+static void receive_frame_settings(DictionaryIterator *iter) {
+  const uint32_t frame_keys[FRAME_SLOT_COUNT] = {
+    MESSAGE_KEY_FRAME_LEFT, MESSAGE_KEY_FRAME_MIDDLE, MESSAGE_KEY_FRAME_RIGHT};
+  bool changed = false;
+  for (unsigned i = 0; i < FRAME_SLOT_COUNT; ++i) {
+    Tuple *tuple = dict_find(iter, frame_keys[i]);
+    if (!tuple || (tuple->type != TUPLE_INT && tuple->type != TUPLE_UINT) ||
+        tuple->length != 4)
+      continue;
+    int32_t value = tuple->value->int32;
+    if (value >= FRAME_NONE && value < FRAME_CONTENT_COUNT &&
+        value != s_frame_contents[i]) {
+      s_frame_contents[i] = value;
+      persist_write_int(FRAME_PERSIST_BASE + i, value);
+      changed = true;
+    }
+  }
+  if (changed && s_canvas)
+    layer_mark_dirty(s_canvas);
+}
+
 static void request_weather(void) {
   s_weather_pending = true;
   if (!s_connected || !s_js_ready)
@@ -40,6 +76,7 @@ static void request_weather(void) {
 }
 
 static void weather_received(DictionaryIterator *iter, void *context) {
+  receive_frame_settings(iter);
   Tuple *temperature = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
   if (temperature && (temperature->type == TUPLE_INT || temperature->type == TUPLE_UINT) &&
       temperature->length == 4) {
@@ -213,9 +250,9 @@ static void draw_weather_content(GContext *ctx, GRect bounds, void *context) {
   draw_frame_value(ctx, bounds, s_weather_icon, s_temperature, true);
 }
 
-// Reorder these entries or replace a renderer to change a slot's contents.
-// A NULL renderer leaves the border visible with an empty interior.
-static const FrameSlot s_frame_slots[] = {
+// Indexed by the persisted frame content IDs. None skips border and content.
+static const FrameSlot s_frame_renderers[FRAME_CONTENT_COUNT] = {
+    {NULL, NULL},
     {draw_steps_content, NULL},
     {draw_heart_rate_content, NULL},
     {draw_weather_content, NULL},
@@ -322,13 +359,12 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_line(ctx, GPoint(8, 124), GPoint(8, h - 33));
   graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
 
-  const unsigned slot_count = sizeof(s_frame_slots) / sizeof(s_frame_slots[0]);
-  for (unsigned i = 0; i < slot_count; ++i)
+  for (unsigned i = 0; i < FRAME_SLOT_COUNT; ++i) {
+    const FrameSlot *slot = &s_frame_renderers[s_frame_contents[i]];
+    if (!slot->render)
+      continue;
     draw_cyan_frame(ctx, cyan_frame_bounds(i));
-  for (unsigned i = 0; i < slot_count; ++i) {
-    const FrameSlot *slot = &s_frame_slots[i];
-    if (slot->render)
-      slot->render(ctx, cyan_frame_bounds(i), slot->context);
+    slot->render(ctx, cyan_frame_bounds(i), slot->context);
   }
 
   graphics_context_set_stroke_width(ctx, 1);
@@ -514,6 +550,7 @@ static void window_unload(Window *window) {
 }
 
 int main(void) {
+  load_frame_settings();
   if (persist_exists(WEATHER_PERSIST_KEY)) {
     int32_t value = persist_read_int(WEATHER_PERSIST_KEY);
     if (value >= -150 && value <= 150)

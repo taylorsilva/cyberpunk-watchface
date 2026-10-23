@@ -1,0 +1,91 @@
+[
+  {
+    "type": "heading",
+    "defaultValue": "Cyberpunk settings"
+  },
+  {
+    "type": "text",
+    "defaultValue": "Choose content for each cyan frame. None hides the frame and its content. Other frames stay in place."
+  },
+  {
+    "type": "section",
+    "items": [
+      {
+        "type": "select",
+        "messageKey": "FRAME_LEFT",
+        "label": "Left frame",
+        "defaultValue": "1",
+        "options": [
+          {
+            "label": "None",
+            "value": "0"
+          },
+          {
+            "label": "Steps",
+            "value": "1"
+          },
+          {
+            "label": "Heart rate",
+            "value": "2"
+          },
+          {
+            "label": "Current temperature",
+            "value": "3"
+          }
+        ]
+      },
+      {
+        "type": "select",
+        "messageKey": "FRAME_MIDDLE",
+        "label": "Middle frame",
+        "defaultValue": "2",
+        "options": [
+          {
+            "label": "None",
+            "value": "0"
+          },
+          {
+            "label": "Steps",
+            "value": "1"
+          },
+          {
+            "label": "Heart rate",
+            "value": "2"
+          },
+          {
+            "label": "Current temperature",
+            "value": "3"
+          }
+        ]
+      },
+      {
+        "type": "select",
+        "messageKey": "FRAME_RIGHT",
+        "label": "Right frame",
+        "defaultValue": "3",
+        "options": [
+          {
+            "label": "None",
+            "value": "0"
+          },
+          {
+            "label": "Steps",
+            "value": "1"
+          },
+          {
+            "label": "Heart rate",
+            "value": "2"
+          },
+          {
+            "label": "Current temperature",
+            "value": "3"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "submit",
+    "defaultValue": "Save"
+  }
+]

@@ -1,3 +1,31 @@
+var Clay = require('pebble-clay');
+var clay = new Clay(require('./config.json'), null, {autoHandleEvents: false});
+var frameKeys = ['FRAME_LEFT', 'FRAME_MIDDLE', 'FRAME_RIGHT'];
+
+Pebble.addEventListener('showConfiguration', function() {
+  Pebble.openURL(clay.generateUrl());
+});
+Pebble.addEventListener('webviewclosed', function(event) {
+  if (!event || !event.response) return;
+  var settings;
+  try {
+    settings = clay.getSettings(event.response, false);
+  } catch (error) {
+    console.log('Invalid settings response: ' + error.message);
+    return;
+  }
+  var payload = {};
+  frameKeys.forEach(function(key) {
+    var value = settings[key];
+    if (value && typeof value === 'object') value = value.value;
+    if (/^[0-3]$/.test(String(value))) payload[key] = Number(value);
+  });
+  if (!Object.keys(payload).length) return;
+  Pebble.sendAppMessage(payload, function() {}, function(error) {
+    console.log('Settings delivery failed: ' + JSON.stringify(error));
+  });
+});
+
 /* Weather runs on the phone; the watch owns the refresh schedule. */
 var fetching = false;
 

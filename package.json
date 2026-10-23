@@ -6,7 +6,9 @@
     "pebble-app"
   ],
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
   "pebble": {
     "displayName": "Cyberpunk",
     "uuid": "d458b770-c302-4674-8561-d0f1d915a184",
@@ -79,12 +81,16 @@
     },
     "capabilities": [
       "health",
-      "location"
+      "location",
+      "configurable"
     ],
     "messageKeys": [
       "REQUEST_WEATHER",
       "TEMPERATURE",
-      "JS_READY"
+      "JS_READY",
+      "FRAME_LEFT",
+      "FRAME_MIDDLE",
+      "FRAME_RIGHT"
     ]
   }
 }
