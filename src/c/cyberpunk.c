@@ -24,6 +24,20 @@ static void draw_text(GContext *ctx, const char *text, GFont font, GColor color,
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
 
+// Pebble rounds even stroke widths up; paired hairlines give a true 2px rail.
+static void draw_rail(GContext *ctx, GPoint start, GPoint end) {
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_line(ctx, start, end);
+  if (start.x == end.x) {
+    ++start.x;
+    ++end.x;
+  } else {
+    ++start.y;
+    ++end.y;
+  }
+  graphics_draw_line(ctx, start, end);
+}
+
 static void draw_face(Layer *layer, GContext *ctx) {
   const GRect bounds = layer_get_bounds(layer);
   const int w = bounds.size.w, h = bounds.size.h;
@@ -32,15 +46,15 @@ static void draw_face(Layer *layer, GContext *ctx) {
 
   // Broken, chamfered rails frame the information without competing with it.
   graphics_context_set_stroke_color(ctx, cyan());
-  graphics_draw_line(ctx, GPoint(8, 17), GPoint(8, 8));
-  graphics_draw_line(ctx, GPoint(8, 8), GPoint(w - 37, 8));
-  graphics_draw_line(ctx, GPoint(w - 37, 8), GPoint(w - 29, 16));
-  graphics_draw_line(ctx, GPoint(w - 29, 16), GPoint(w - 9, 16));
+  draw_rail(ctx, GPoint(8, 17), GPoint(8, 8));
+  draw_rail(ctx, GPoint(8, 8), GPoint(w - 37, 8));
+  draw_rail(ctx, GPoint(w - 37, 8), GPoint(w - 29, 16));
+  draw_rail(ctx, GPoint(w - 29, 16), GPoint(w - 9, 16));
   graphics_context_set_stroke_color(ctx, red());
-  graphics_draw_line(ctx, GPoint(w - 9, 27), GPoint(w - 9, 80));
-  graphics_draw_line(ctx, GPoint(8, 88), GPoint(26, 88));
-  graphics_draw_line(ctx, GPoint(26, 88), GPoint(32, 82));
-  graphics_draw_line(ctx, GPoint(32, 82), GPoint(w - 9, 82));
+  draw_rail(ctx, GPoint(w - 9, 27), GPoint(w - 9, 80));
+  draw_rail(ctx, GPoint(8, 88), GPoint(26, 88));
+  draw_rail(ctx, GPoint(26, 88), GPoint(32, 82));
+  draw_rail(ctx, GPoint(32, 82), GPoint(w - 9, 82));
 
   const int hour_width = text_width(s_hour, s_time_font);
   const int colon_width = text_width(":", s_time_font);
@@ -72,13 +86,14 @@ static void draw_face(Layer *layer, GContext *ctx) {
   draw_text(ctx, s_day, s_date_font, GColorWhite, x, date_y, day_width + 2, 30);
 
   graphics_context_set_stroke_color(ctx, cyan());
-  graphics_draw_line(ctx, GPoint(8, 132), GPoint(48, 132));
-  graphics_draw_line(ctx, GPoint(48, 132), GPoint(54, 126));
-  graphics_draw_line(ctx, GPoint(54, 126), GPoint(w - 9, 126));
-  graphics_draw_line(ctx, GPoint(8, 143), GPoint(8, h - 42));
-  graphics_draw_line(ctx, GPoint(8, h - 42), GPoint(17, h - 33));
-  graphics_draw_line(ctx, GPoint(17, h - 33), GPoint(37, h - 33));
+  draw_rail(ctx, GPoint(8, 132), GPoint(48, 132));
+  draw_rail(ctx, GPoint(48, 132), GPoint(54, 126));
+  draw_rail(ctx, GPoint(54, 126), GPoint(w - 9, 126));
+  draw_rail(ctx, GPoint(8, 143), GPoint(8, h - 42));
+  draw_rail(ctx, GPoint(8, h - 42), GPoint(17, h - 33));
+  draw_rail(ctx, GPoint(17, h - 33), GPoint(37, h - 33));
 
+  graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
   for (int i = 0; i < 3; ++i) {
     graphics_draw_line(ctx, GPoint(w - 26 + i * 5, 137),
@@ -90,8 +105,10 @@ static void draw_face(Layer *layer, GContext *ctx) {
   const int fill_width = interior_width * s_battery / 100;
   graphics_context_set_fill_color(ctx, red());
   if (fill_width > 0) {
-    graphics_fill_rect(ctx, GRect(bar.origin.x + 1, bar.origin.y + 1,
-                                 fill_width, bar.size.h - 2), 0, GCornerNone);
+    graphics_fill_rect(
+        ctx,
+        GRect(bar.origin.x + 1, bar.origin.y + 1, fill_width, bar.size.h - 2),
+        0, GCornerNone);
   }
   graphics_context_set_stroke_color(ctx, red());
   graphics_context_set_stroke_width(ctx, 1);
