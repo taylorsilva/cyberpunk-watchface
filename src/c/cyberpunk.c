@@ -38,7 +38,12 @@ static void update_steps(void) {
       HealthMetricStepCount, time_start_of_today(), now);
   if (access & HealthServiceAccessibilityMaskAvailable) {
     HealthValue steps = health_service_sum_today(HealthMetricStepCount);
-    snprintf(s_steps, sizeof(s_steps), "%ld", (long)(steps < 0 ? 0 : steps));
+    if (steps >= 1000) {
+      snprintf(s_steps, sizeof(s_steps), "%ld.%ldk", (long)(steps / 1000),
+               (long)((steps % 1000) / 100));
+    } else {
+      snprintf(s_steps, sizeof(s_steps), "%ld", (long)(steps < 0 ? 0 : steps));
+    }
   } else {
     snprintf(s_steps, sizeof(s_steps), "--");
   }

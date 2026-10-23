@@ -36,7 +36,7 @@
           "type": "font",
           "name": "BLENDER_BOOK_22",
           "file": "fonts/Blender-Pro-Book.ttf",
-          "characterRegex": "[0-9%\\-]"
+          "characterRegex": "[0-9%\\-.k]"
         },
         {
           "type": "raw",
@@ -57,13 +57,13 @@
           "type": "font",
           "name": "BLENDER_BOOK_18",
           "file": "fonts/Blender-Pro-Book.ttf",
-          "characterRegex": "[0-9]"
+          "characterRegex": "[0-9.k]"
         },
         {
           "type": "font",
           "name": "BLENDER_BOOK_12",
           "file": "fonts/Blender-Pro-Book.ttf",
-          "characterRegex": "[0-9]"
+          "characterRegex": "[0-9.k]"
         }
       ]
     },
