@@ -148,6 +148,79 @@ static void draw_text(GContext *ctx, const char *text, GFont font, GColor color,
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
 
+// Renderers receive canvas coordinates and must keep content within the frame,
+// allowing clearance for its clipped bottom-right corner.
+typedef void (*FrameContentRenderer)(GContext *ctx, GRect bounds, void *context);
+typedef struct {
+  FrameContentRenderer render;
+  void *context;
+} FrameSlot;
+
+static GRect cyan_frame_bounds(unsigned index) {
+  return GRect(18 + index * 57, 125, 50, 60);
+}
+
+static void draw_cyan_frame(GContext *ctx, GRect bounds) {
+  const int left = bounds.origin.x, top = bounds.origin.y;
+  const int right = left + bounds.size.w - 1;
+  const int bottom = top + bounds.size.h - 1;
+  const int clip = 6;
+  graphics_context_set_stroke_color(ctx, cyan());
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_line(ctx, GPoint(left, top), GPoint(right, top));
+  graphics_draw_line(ctx, GPoint(right, top), GPoint(right, bottom - clip));
+  graphics_draw_line(ctx, GPoint(right, bottom - clip),
+                     GPoint(right - clip, bottom));
+  graphics_draw_line(ctx, GPoint(right - clip, bottom), GPoint(left, bottom));
+  graphics_draw_line(ctx, GPoint(left, bottom), GPoint(left, top));
+}
+
+static void draw_frame_value(GContext *ctx, GRect bounds,
+                             GDrawCommandImage *icon, const char *value,
+                             bool shrink_to_fit) {
+  if (icon)
+    gdraw_command_image_draw(ctx, icon,
+                            GPoint(bounds.origin.x + 11, bounds.origin.y + 6));
+  const int width = bounds.size.w - 4;
+  GFont font = s_battery_font;
+  int y = bounds.origin.y + 31;
+  if (shrink_to_fit && text_width(value, font) > width) {
+    font = s_steps_small_font;
+    y = bounds.origin.y + 35;
+  }
+  if (shrink_to_fit && text_width(value, font) > width) {
+    font = s_steps_tiny_font;
+    y = bounds.origin.y + 41;
+  }
+  graphics_context_set_text_color(ctx, cyan());
+  graphics_draw_text(ctx, value, font,
+                     GRect(bounds.origin.x + 2, y, width, 27),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
+
+static void draw_steps_content(GContext *ctx, GRect bounds, void *context) {
+  (void)context;
+  draw_frame_value(ctx, bounds, s_shoe, s_steps, true);
+}
+
+static void draw_heart_rate_content(GContext *ctx, GRect bounds, void *context) {
+  (void)context;
+  draw_frame_value(ctx, bounds, s_heart, s_heart_rate, false);
+}
+
+static void draw_weather_content(GContext *ctx, GRect bounds, void *context) {
+  (void)context;
+  draw_frame_value(ctx, bounds, s_weather_icon, s_temperature, true);
+}
+
+// Reorder these entries or replace a renderer to change a slot's contents.
+// A NULL renderer leaves the border visible with an empty interior.
+static const FrameSlot s_frame_slots[] = {
+    {draw_steps_content, NULL},
+    {draw_heart_rate_content, NULL},
+    {draw_weather_content, NULL},
+};
+
 static void draw_face(Layer *layer, GContext *ctx) {
   const GRect bounds = layer_get_bounds(layer);
   const int w = bounds.size.w, h = bounds.size.h;
@@ -249,59 +322,14 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_line(ctx, GPoint(8, 124), GPoint(8, h - 33));
   graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
 
-  // Matching inset frames fill the three-column layout.
-  graphics_context_set_stroke_color(ctx, cyan());
-  graphics_context_set_stroke_width(ctx, 1);
-  for (int i = 0; i < 3; ++i) {
-    const int left = 18 + i * 57;
-    const int top = 125;
-    const int right = left + 49;
-    const int bottom = 184;
-    const int clip = 6;
-    graphics_draw_line(ctx, GPoint(left, top), GPoint(right, top));
-    graphics_draw_line(ctx, GPoint(right, top), GPoint(right, bottom - clip));
-    graphics_draw_line(ctx, GPoint(right, bottom - clip),
-                       GPoint(right - clip, bottom));
-    graphics_draw_line(ctx, GPoint(right - clip, bottom), GPoint(left, bottom));
-    graphics_draw_line(ctx, GPoint(left, bottom), GPoint(left, top));
+  const unsigned slot_count = sizeof(s_frame_slots) / sizeof(s_frame_slots[0]);
+  for (unsigned i = 0; i < slot_count; ++i)
+    draw_cyan_frame(ctx, cyan_frame_bounds(i));
+  for (unsigned i = 0; i < slot_count; ++i) {
+    const FrameSlot *slot = &s_frame_slots[i];
+    if (slot->render)
+      slot->render(ctx, cyan_frame_bounds(i), slot->context);
   }
-
-  if (s_shoe)
-    gdraw_command_image_draw(ctx, s_shoe, GPoint(29, 131));
-  GFont steps_font = s_battery_font;
-  int steps_y = 156;
-  if (text_width(s_steps, steps_font) > 46) {
-    steps_font = s_steps_small_font;
-    steps_y = 160;
-  }
-  if (text_width(s_steps, steps_font) > 46) {
-    steps_font = s_steps_tiny_font;
-    steps_y = 166;
-  }
-  graphics_context_set_text_color(ctx, cyan());
-  graphics_draw_text(ctx, s_steps, steps_font, GRect(20, steps_y, 46, 27),
-                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-
-  if (s_heart)
-    gdraw_command_image_draw(ctx, s_heart, GPoint(86, 131));
-  graphics_draw_text(ctx, s_heart_rate, s_battery_font, GRect(77, 156, 46, 27),
-                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-
-  if (s_weather_icon)
-    gdraw_command_image_draw(ctx, s_weather_icon, GPoint(143, 131));
-  GFont weather_font = s_battery_font;
-  int weather_y = 156;
-  if (text_width(s_temperature, weather_font) > 46) {
-    weather_font = s_steps_small_font;
-    weather_y = 160;
-  }
-  if (text_width(s_temperature, weather_font) > 46) {
-    weather_font = s_steps_tiny_font;
-    weather_y = 166;
-  }
-  graphics_draw_text(ctx, s_temperature, weather_font,
-                     GRect(134, weather_y, 46, 27),
-                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
   graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
