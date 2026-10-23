@@ -71,6 +71,9 @@ enum { SHOE_SIZE = 28, HEART_SIZE = 28, BLUETOOTH_SIZE = 20,
        CHARGING_HEIGHT = 20 };
 
 static bool scale_icon(GDrawCommand *command, uint32_t index, void *context) {
+  if (gdraw_command_get_stroke_color(command).a != 0) {
+    gdraw_command_set_stroke_color(command, GColorCyan);
+  }
   const int source_size = ((int *)context)[0];
   const int target_size = ((int *)context)[1];
   for (uint16_t i = 0; i < gdraw_command_get_num_points(command); ++i) {

@@ -8,7 +8,7 @@
    y="0px"
    viewBox="0 0 80 80"
    xml:space="preserve"
-   sodipodi:docname="Pebble_80x80_Run.svg"
+   sodipodi:docname="shoe.svg"
    inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -24,12 +24,12 @@
    inkscape:pagecheckerboard="0"
    inkscape:deskcolor="#d1d1d1"
    inkscape:zoom="10.325"
-   inkscape:cx="40.048426"
-   inkscape:cy="40"
-   inkscape:window-width="2280"
-   inkscape:window-height="1353"
-   inkscape:window-x="2240"
-   inkscape:window-y="25"
+   inkscape:cx="40.096852"
+   inkscape:cy="40.048426"
+   inkscape:window-width="1512"
+   inkscape:window-height="916"
+   inkscape:window-x="0"
+   inkscape:window-y="38"
    inkscape:window-maximized="0"
    inkscape:current-layer="Layer_1" />
 <polygon
@@ -40,7 +40,7 @@
    stroke-linecap="square"
    stroke-miterlimit="10"
    points="72,69 43,69 6.6,32.7 29,10 37,26 53,26 53,49.5 69,56 "
-   style="display:inline;stroke:#00ffff;stroke-opacity:1;fill:none" />
+   style="display:inline;stroke:#000000;stroke-opacity:1;fill:none" />
 <line
    id="XMLID_2309_"
    fill="#FFFFFF"
@@ -52,7 +52,7 @@
    y1="68"
    x2="54"
    y2="50"
-   style="stroke:#00ffff;stroke-opacity:1" />
+   style="stroke:#000000;stroke-opacity:1" />
 <line
    fill="none"
    stroke="#000000"
@@ -64,7 +64,7 @@
    x2="46.927406"
    y2="61.327408"
    id="line1"
-   style="stroke:#00ffff;stroke-opacity:1" />
+   style="stroke:#000000;stroke-opacity:1" />
 
 
 <line
@@ -78,7 +78,7 @@
    x2="43"
    y2="44.5"
    id="line4"
-   style="stroke:#00ffff;stroke-opacity:1" />
+   style="stroke:#000000;stroke-opacity:1" />
 <line
    fill="none"
    stroke="#000000"
@@ -90,7 +90,7 @@
    x2="43"
    y2="38.5"
    id="line5"
-   style="stroke:#00ffff;stroke-opacity:1" />
+   style="stroke:#000000;stroke-opacity:1" />
 <line
    fill="none"
    stroke="#000000"
@@ -102,5 +102,5 @@
    x2="43"
    y2="32.5"
    id="line6"
-   style="stroke:#00ffff;stroke-opacity:1" />
+   style="stroke:#000000;stroke-opacity:1" />
 </svg>
