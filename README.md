@@ -12,6 +12,7 @@ There are three cards that can be displayed. Current display options are:
 - UV Index
 
 Other features:
+- Battery percentage is displayed in the bottom right and a progress bar is visible along the bottom
 - Vibrate and display an icon to the right of the date if the watch is disconnected from the phone
 - Display an icon to the left of the date when the watch is charging
 
