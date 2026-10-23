@@ -41,7 +41,7 @@
           "type": "font",
           "name": "BLENDER_BOOK_22",
           "file": "fonts/Blender-Pro-Book.ttf",
-          "characterRegex": "[0-9%\\-.k]"
+          "characterRegex": "[0-9%\\-.kC\u00b0]"
         },
         {
           "type": "raw",
@@ -62,18 +62,29 @@
           "type": "font",
           "name": "BLENDER_BOOK_18",
           "file": "fonts/Blender-Pro-Book.ttf",
-          "characterRegex": "[0-9.k]"
+          "characterRegex": "[0-9.kC\u00b0\\-]"
         },
         {
           "type": "font",
           "name": "BLENDER_BOOK_12",
           "file": "fonts/Blender-Pro-Book.ttf",
-          "characterRegex": "[0-9.k]"
+          "characterRegex": "[0-9.kC\u00b0\\-]"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER",
+          "file": "pdc/generic-weather.pdc"
         }
       ]
     },
     "capabilities": [
-      "health"
+      "health",
+      "location"
+    ],
+    "messageKeys": [
+      "REQUEST_WEATHER",
+      "TEMPERATURE",
+      "JS_READY"
     ]
   }
 }

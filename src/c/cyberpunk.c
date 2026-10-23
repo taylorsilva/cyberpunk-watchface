@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include "message_keys.auto.h"
 
 static Window *s_window;
 static Layer *s_canvas;
@@ -12,6 +13,57 @@ static GDrawCommandImage *s_shoe;
 static GDrawCommandImage *s_heart;
 static GDrawCommandImage *s_bluetooth_disconnected;
 static bool s_connected;
+static GDrawCommandImage *s_weather_icon;
+static char s_temperature[16] = "--°C";
+static bool s_js_ready;
+static bool s_weather_pending = true;
+static time_t s_weather_attempt;
+enum { WEATHER_PERSIST_KEY = 1, WEATHER_INTERVAL = 60 * 60 };
+
+static void request_weather(void) {
+  s_weather_pending = true;
+  if (!s_connected || !s_js_ready)
+    return;
+  DictionaryIterator *iter;
+  AppMessageResult result = app_message_outbox_begin(&iter);
+  if (result == APP_MSG_OK) {
+    dict_write_uint8(iter, MESSAGE_KEY_REQUEST_WEATHER, 1);
+    result = app_message_outbox_send();
+  }
+  if (result == APP_MSG_OK) {
+    s_weather_pending = false;
+    s_weather_attempt = time(NULL);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Weather refresh requested");
+  } else {
+    APP_LOG(APP_LOG_LEVEL_WARNING, "Weather request failed: %d", result);
+  }
+}
+
+static void weather_received(DictionaryIterator *iter, void *context) {
+  Tuple *temperature = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
+  if (temperature && (temperature->type == TUPLE_INT || temperature->type == TUPLE_UINT) &&
+      temperature->length == 4) {
+    int32_t value = temperature->value->int32;
+    if (value >= -150 && value <= 150) {
+      snprintf(s_temperature, sizeof(s_temperature), "%ld°C", (long)value);
+      persist_write_int(WEATHER_PERSIST_KEY, value);
+      if (s_canvas)
+        layer_mark_dirty(s_canvas);
+    }
+  }
+  if (dict_find(iter, MESSAGE_KEY_JS_READY)) {
+    bool was_ready = s_js_ready;
+    s_js_ready = true;
+    if (!was_ready || s_weather_pending)
+      request_weather();
+  }
+}
+
+static void weather_outbox_failed(DictionaryIterator *iter,
+                                  AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_WARNING, "Weather message failed: %d", reason);
+  s_weather_pending = true;
+}
 static GFont s_steps_small_font, s_steps_tiny_font;
 static char s_steps[12] = "--";
 static char s_heart_rate[12] = "--";
@@ -232,6 +284,22 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_text(ctx, s_heart_rate, s_battery_font, GRect(77, 156, 46, 27),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
+  if (s_weather_icon)
+    gdraw_command_image_draw(ctx, s_weather_icon, GPoint(143, 131));
+  GFont weather_font = s_battery_font;
+  int weather_y = 156;
+  if (text_width(s_temperature, weather_font) > 46) {
+    weather_font = s_steps_small_font;
+    weather_y = 160;
+  }
+  if (text_width(s_temperature, weather_font) > 46) {
+    weather_font = s_steps_tiny_font;
+    weather_y = 166;
+  }
+  graphics_draw_text(ctx, s_temperature, weather_font,
+                     GRect(134, weather_y, 46, 27),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+
   graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
   // The outline remains visible even when the battery is empty.
@@ -268,6 +336,8 @@ static void update_time(struct tm *now) {
 
 static void tick_handler(struct tm *now, TimeUnits changed) {
   update_time(now);
+  if (s_weather_pending || time(NULL) - s_weather_attempt >= WEATHER_INTERVAL)
+    request_weather();
   update_steps();
   update_heart_rate();
 }
@@ -282,7 +352,10 @@ static void battery_handler(BatteryChargeState state) {
 static void connection_handler(bool connected) {
   if (s_connected && !connected)
     vibes_short_pulse();
+  bool reconnected = !s_connected && connected;
   s_connected = connected;
+  if (reconnected)
+    request_weather();
   if (s_canvas)
     layer_mark_dirty(s_canvas);
 }
@@ -319,6 +392,17 @@ static void window_load(Window *window) {
       gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_shoe),
                                 scale_icon, scale);
       gdraw_command_image_set_bounds_size(s_shoe, GSize(SHOE_SIZE, SHOE_SIZE));
+    }
+  }
+  s_weather_icon = gdraw_command_image_create_with_resource(RESOURCE_ID_WEATHER);
+  if (s_weather_icon) {
+    GSize size = gdraw_command_image_get_bounds_size(s_weather_icon);
+    int source_size = size.w > size.h ? size.w : size.h;
+    if (source_size > 0) {
+      int scale[] = {source_size, 28};
+      gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_weather_icon),
+                                scale_icon, scale);
+      gdraw_command_image_set_bounds_size(s_weather_icon, GSize(28, 28));
     }
   }
   s_heart = gdraw_command_image_create_with_resource(RESOURCE_ID_HEART);
@@ -362,6 +446,10 @@ static void window_load(Window *window) {
 }
 
 static void window_unload(Window *window) {
+  if (s_weather_icon) {
+    gdraw_command_image_destroy(s_weather_icon);
+    s_weather_icon = NULL;
+  }
   if (s_charging_icon) {
     gdraw_command_image_destroy(s_charging_icon);
     s_charging_icon = NULL;
@@ -395,6 +483,14 @@ static void window_unload(Window *window) {
 }
 
 int main(void) {
+  if (persist_exists(WEATHER_PERSIST_KEY)) {
+    int32_t value = persist_read_int(WEATHER_PERSIST_KEY);
+    if (value >= -150 && value <= 150)
+      snprintf(s_temperature, sizeof(s_temperature), "%ld°C", (long)value);
+  }
+  app_message_register_inbox_received(weather_received);
+  app_message_register_outbox_failed(weather_outbox_failed);
+  app_message_open(128, 128);
   s_connected = connection_service_peek_pebble_app_connection();
   s_window = window_create();
   if (!s_window)
@@ -413,6 +509,7 @@ int main(void) {
   health_service_events_unsubscribe();
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
+  app_message_deregister_callbacks();
   window_destroy(s_window);
   return 0;
 }
