@@ -7,11 +7,13 @@ static char s_hour[3], s_minute[3], s_day[3];
 static const char *s_weekday, *s_month;
 static uint8_t s_battery;
 static GDrawCommandImage *s_shoe;
+static GDrawCommandImage *s_heart;
 static GDrawCommandImage *s_bluetooth_disconnected;
 static bool s_connected;
 static GFont s_steps_small_font, s_steps_tiny_font;
 static char s_steps[12] = "--";
-enum { SHOE_SIZE = 28, BLUETOOTH_SIZE = 20 };
+static char s_heart_rate[12] = "--";
+enum { SHOE_SIZE = 28, HEART_SIZE = 28, BLUETOOTH_SIZE = 20 };
 
 static bool scale_icon(GDrawCommand *command, uint32_t index, void *context) {
   const int source_size = ((int *)context)[0];
@@ -44,9 +46,26 @@ static void update_steps(void) {
     layer_mark_dirty(s_canvas);
 }
 
+static void update_heart_rate(void) {
+  time_t now = time(NULL);
+  HealthServiceAccessibilityMask access = health_service_metric_accessible(
+      HealthMetricHeartRateBPM, now, now);
+  HealthValue heart_rate = 0;
+  if (access & HealthServiceAccessibilityMaskAvailable)
+    heart_rate = health_service_peek_current_value(HealthMetricHeartRateBPM);
+  if (heart_rate > 0)
+    snprintf(s_heart_rate, sizeof(s_heart_rate), "%ld", (long)heart_rate);
+  else
+    snprintf(s_heart_rate, sizeof(s_heart_rate), "--");
+  if (s_canvas)
+    layer_mark_dirty(s_canvas);
+}
+
 static void health_handler(HealthEventType event, void *context) {
   if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate)
     update_steps();
+  if (event == HealthEventHeartRateUpdate || event == HealthEventSignificantUpdate)
+    update_heart_rate();
 }
 
 static GColor cyan(void) { return GColorFromHEX(0x00ffff); }
@@ -187,6 +206,11 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_text(ctx, s_steps, steps_font, GRect(20, steps_y, 46, 27),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
+  if (s_heart)
+    gdraw_command_image_draw(ctx, s_heart, GPoint(86, 131));
+  graphics_draw_text(ctx, s_heart_rate, s_battery_font, GRect(77, 156, 46, 27),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+
   graphics_context_set_stroke_width(ctx, 1);
   graphics_context_set_stroke_color(ctx, red());
   // The outline remains visible even when the battery is empty.
@@ -224,6 +248,7 @@ static void update_time(struct tm *now) {
 static void tick_handler(struct tm *now, TimeUnits changed) {
   update_time(now);
   update_steps();
+  update_heart_rate();
 }
 
 static void battery_handler(BatteryChargeState state) {
@@ -251,7 +276,7 @@ static void window_load(Window *window) {
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_18));
   s_steps_tiny_font =
       fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLENDER_BOOK_12));
-  s_shoe = gdraw_command_image_create_with_resource(RESOURCE_ID_SHOE_CYAN);
+  s_shoe = gdraw_command_image_create_with_resource(RESOURCE_ID_SHOE);
   if (s_shoe) {
     GSize size = gdraw_command_image_get_bounds_size(s_shoe);
     int source_size = size.w > size.h ? size.w : size.h;
@@ -260,6 +285,17 @@ static void window_load(Window *window) {
       gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_shoe),
                                 scale_icon, scale);
       gdraw_command_image_set_bounds_size(s_shoe, GSize(SHOE_SIZE, SHOE_SIZE));
+    }
+  }
+  s_heart = gdraw_command_image_create_with_resource(RESOURCE_ID_HEART);
+  if (s_heart) {
+    GSize size = gdraw_command_image_get_bounds_size(s_heart);
+    int source_size = size.w > size.h ? size.w : size.h;
+    if (source_size > 0) {
+      int scale[] = {source_size, HEART_SIZE};
+      gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_heart),
+                                scale_icon, scale);
+      gdraw_command_image_set_bounds_size(s_heart, GSize(HEART_SIZE, HEART_SIZE));
     }
   }
   s_bluetooth_disconnected = gdraw_command_image_create_with_resource(
@@ -288,9 +324,14 @@ static void window_load(Window *window) {
   update_time(localtime(&now));
   battery_handler(battery_state_service_peek());
   update_steps();
+  update_heart_rate();
 }
 
 static void window_unload(Window *window) {
+  if (s_heart) {
+    gdraw_command_image_destroy(s_heart);
+    s_heart = NULL;
+  }
   if (s_bluetooth_disconnected) {
     gdraw_command_image_destroy(s_bluetooth_disconnected);
     s_bluetooth_disconnected = NULL;

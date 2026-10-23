@@ -40,13 +40,18 @@
         },
         {
           "type": "raw",
-          "name": "SHOE_CYAN",
-          "file": "pdc/shoe-cyan.pdc"
+          "name": "HEART",
+          "file": "pdc/heart.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "SHOE",
+          "file": "pdc/shoe.pdc"
         },
         {
           "type": "raw",
           "name": "BLUETOOTH_DISCONNECTED",
-          "file": "pdc/bluetooth-disconnected.pdc"
+          "file": "pdc/watch-disconnect.pdc"
         },
         {
           "type": "font",
