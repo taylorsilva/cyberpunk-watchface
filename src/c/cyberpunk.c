@@ -389,7 +389,15 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_line(ctx, GPoint(w - 9, 114), GPoint(w - 9, cyan_bottom));
   graphics_draw_line(ctx, GPoint(8, 124), GPoint(18, 114));
   graphics_draw_line(ctx, GPoint(8, 124), GPoint(8, h - 33));
-  graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
+  // Taper the solid bottom edge inward, leaving eight black rows above the bar.
+  graphics_context_set_fill_color(ctx, red());
+  const int trapezoid_depth = 6;
+  for (int inset = 0; inset <= trapezoid_depth; ++inset) {
+    graphics_fill_rect(ctx,
+        GRect(7 + inset, h - 33 + inset,
+              percentage_x - 6 - 7 + 1 - 2 * inset, 1),
+        0, GCornerNone);
+  }
 
   for (unsigned i = 0; i < FRAME_SLOT_COUNT; ++i) {
     const FrameSlot *slot = &s_frame_renderers[s_frame_contents[i]];
