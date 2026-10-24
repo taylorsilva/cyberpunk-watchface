@@ -3,6 +3,7 @@
 A Pebble Time 2 (Emery, 200×228) watchface inspired by the Cyberpunk 2077 video game.
 
 ![Render of the watchface](./screenshot_default.png)
+![Render of the watchface with the charging and disconnected icons](./screenshot_charging_disconnected.png)
 
 There are three cards that can be displayed. Current display options are:
 
