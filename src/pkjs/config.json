@@ -4,6 +4,27 @@
     "defaultValue": "Cyberpunk settings"
   },
   {
+    "type": "section",
+    "items": [
+      {
+        "type": "select",
+        "messageKey": "TIME_FORMAT",
+        "label": "Time format",
+        "defaultValue": "12",
+        "options": [
+          {
+            "label": "12-hour",
+            "value": "12"
+          },
+          {
+            "label": "24-hour",
+            "value": "24"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "type": "text",
     "defaultValue": "Choose content for each card. 'None' hides the card and its content. Other card stay in place."
   },
@@ -13,7 +34,7 @@
       {
         "type": "select",
         "messageKey": "FRAME_LEFT",
-        "label": "Left frame",
+        "label": "Left card",
         "defaultValue": "1",
         "options": [
           {
@@ -41,7 +62,7 @@
       {
         "type": "select",
         "messageKey": "FRAME_MIDDLE",
-        "label": "Middle frame",
+        "label": "Middle card",
         "defaultValue": "2",
         "options": [
           {
@@ -69,7 +90,7 @@
       {
         "type": "select",
         "messageKey": "FRAME_RIGHT",
-        "label": "Right frame",
+        "label": "Right card",
         "defaultValue": "3",
         "options": [
           {

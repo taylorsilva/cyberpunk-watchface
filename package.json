@@ -91,7 +91,8 @@
       "FRAME_LEFT",
       "FRAME_MIDDLE",
       "FRAME_RIGHT",
-      "UV_INDEX"
+      "UV_INDEX",
+      "TIME_FORMAT"
     ]
   }
 }

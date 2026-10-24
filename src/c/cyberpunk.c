@@ -65,6 +65,34 @@ static void receive_frame_settings(DictionaryIterator *iter) {
     layer_mark_dirty(s_canvas);
 }
 
+enum { TIME_FORMAT_12 = 12, TIME_FORMAT_24 = 24, TIME_FORMAT_PERSIST_KEY = 3 };
+static uint8_t s_time_format = TIME_FORMAT_12;
+
+static void update_time(struct tm *now);
+
+static void load_time_format(void) {
+  if (persist_exists(TIME_FORMAT_PERSIST_KEY)) {
+    int32_t value = persist_read_int(TIME_FORMAT_PERSIST_KEY);
+    if (value == TIME_FORMAT_12 || value == TIME_FORMAT_24)
+      s_time_format = value;
+  }
+}
+
+static void receive_time_format(DictionaryIterator *iter) {
+  Tuple *tuple = dict_find(iter, MESSAGE_KEY_TIME_FORMAT);
+  if (!tuple || (tuple->type != TUPLE_INT && tuple->type != TUPLE_UINT) ||
+      tuple->length != 4)
+    return;
+  int32_t value = tuple->value->int32;
+  if ((value == TIME_FORMAT_12 || value == TIME_FORMAT_24) &&
+      value != s_time_format) {
+    s_time_format = value;
+    persist_write_int(TIME_FORMAT_PERSIST_KEY, value);
+    time_t now = time(NULL);
+    update_time(localtime(&now));
+  }
+}
+
 static void request_weather(void) {
   s_weather_pending = true;
   if (!s_connected || !s_js_ready)
@@ -86,6 +114,7 @@ static void request_weather(void) {
 
 static void weather_received(DictionaryIterator *iter, void *context) {
   receive_frame_settings(iter);
+  receive_time_format(iter);
   Tuple *temperature = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
   if (temperature && (temperature->type == TUPLE_INT || temperature->type == TUPLE_UINT) &&
       temperature->length == 4) {
@@ -448,7 +477,8 @@ static void update_time(struct tm *now) {
                                    "THU", "FRI", "SAT"};
   static const char *months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
                                  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
-  strftime(s_hour, sizeof(s_hour), "%I", now);
+  strftime(s_hour, sizeof(s_hour),
+           s_time_format == TIME_FORMAT_24 ? "%H" : "%I", now);
   strftime(s_minute, sizeof(s_minute), "%M", now);
   strftime(s_day, sizeof(s_day), "%d", now);
   s_weekday = weekdays[now->tm_wday];
@@ -607,6 +637,7 @@ static void window_unload(Window *window) {
 
 int main(void) {
   load_frame_settings();
+  load_time_format();
   if (persist_exists(WEATHER_PERSIST_KEY)) {
     int32_t value = persist_read_int(WEATHER_PERSIST_KEY);
     if (value >= -150 && value <= 150)

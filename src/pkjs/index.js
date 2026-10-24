@@ -20,6 +20,9 @@ Pebble.addEventListener('webviewclosed', function(event) {
     if (value && typeof value === 'object') value = value.value;
     if (/^[0-4]$/.test(String(value))) payload[key] = Number(value);
   });
+  var timeFormat = settings.TIME_FORMAT;
+  if (timeFormat && typeof timeFormat === 'object') timeFormat = timeFormat.value;
+  if (/^(12|24)$/.test(String(timeFormat))) payload.TIME_FORMAT = Number(timeFormat);
   if (!Object.keys(payload).length) return;
   Pebble.sendAppMessage(payload, function() {}, function(error) {
     console.log('Settings delivery failed: ' + JSON.stringify(error));
