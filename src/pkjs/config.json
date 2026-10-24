@@ -21,6 +21,22 @@
             "value": "24"
           }
         ]
+      },
+      {
+        "type": "select",
+        "messageKey": "TEMPERATURE_UNIT",
+        "label": "Temperature unit",
+        "defaultValue": "0",
+        "options": [
+          {
+            "label": "Celsius (\u00b0C)",
+            "value": "0"
+          },
+          {
+            "label": "Fahrenheit (\u00b0F)",
+            "value": "1"
+          }
+        ]
       }
     ]
   },

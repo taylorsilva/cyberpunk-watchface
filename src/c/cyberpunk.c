@@ -23,6 +23,8 @@ static void weather_timed_out(void *context) {
   set_weather_icon(-1);
 }
 static char s_temperature[16] = "--°C";
+static int32_t s_temperature_celsius;
+static bool s_has_temperature;
 static char s_uv_index[12] = "--";
 static bool s_js_ready;
 static bool s_weather_pending = true;
@@ -101,6 +103,56 @@ static void receive_time_format(DictionaryIterator *iter) {
   }
 }
 
+enum { TEMPERATURE_CELSIUS = 0, TEMPERATURE_FAHRENHEIT = 1,
+       TEMPERATURE_UNIT_PERSIST_KEY = 4 };
+static uint8_t s_temperature_unit = TEMPERATURE_CELSIUS;
+
+static void format_temperature(void) {
+  const char *unit = s_temperature_unit == TEMPERATURE_FAHRENHEIT ? "F" : "C";
+  if (!s_has_temperature) {
+    snprintf(s_temperature, sizeof(s_temperature), "--°%s", unit);
+  } else {
+    int32_t value = s_temperature_celsius;
+    if (s_temperature_unit == TEMPERATURE_FAHRENHEIT) {
+      int32_t numerator = value * 9 + 160;
+      value = (numerator + (numerator < 0 ? -2 : 2)) / 5;
+    }
+    snprintf(s_temperature, sizeof(s_temperature), "%ld°%s", (long)value, unit);
+  }
+  if (s_canvas)
+    layer_mark_dirty(s_canvas);
+}
+
+static void load_temperature(void) {
+  if (persist_exists(TEMPERATURE_UNIT_PERSIST_KEY)) {
+    int32_t unit = persist_read_int(TEMPERATURE_UNIT_PERSIST_KEY);
+    if (unit == TEMPERATURE_CELSIUS || unit == TEMPERATURE_FAHRENHEIT)
+      s_temperature_unit = unit;
+  }
+  if (persist_exists(WEATHER_PERSIST_KEY)) {
+    int32_t value = persist_read_int(WEATHER_PERSIST_KEY);
+    if (value >= -150 && value <= 150) {
+      s_temperature_celsius = value;
+      s_has_temperature = true;
+    }
+  }
+  format_temperature();
+}
+
+static void receive_temperature_unit(DictionaryIterator *iter) {
+  Tuple *tuple = dict_find(iter, MESSAGE_KEY_TEMPERATURE_UNIT);
+  if (!tuple || (tuple->type != TUPLE_INT && tuple->type != TUPLE_UINT) ||
+      tuple->length != 4)
+    return;
+  int32_t value = tuple->value->int32;
+  if ((value == TEMPERATURE_CELSIUS || value == TEMPERATURE_FAHRENHEIT) &&
+      value != s_temperature_unit) {
+    s_temperature_unit = value;
+    persist_write_int(TEMPERATURE_UNIT_PERSIST_KEY, value);
+    format_temperature();
+  }
+}
+
 static void request_weather(void) {
   s_weather_pending = true;
   if (!s_weather_timeout)
@@ -125,6 +177,7 @@ static void request_weather(void) {
 static void weather_received(DictionaryIterator *iter, void *context) {
   receive_frame_settings(iter);
   receive_time_format(iter);
+  receive_temperature_unit(iter);
   Tuple *code = dict_find(iter, MESSAGE_KEY_WEATHER_CODE);
   Tuple *temperature = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
   if (code || temperature) {
@@ -139,10 +192,10 @@ static void weather_received(DictionaryIterator *iter, void *context) {
       temperature->length == 4) {
     int32_t value = temperature->value->int32;
     if (value >= -150 && value <= 150) {
-      snprintf(s_temperature, sizeof(s_temperature), "%ld°C", (long)value);
+      s_temperature_celsius = value;
+      s_has_temperature = true;
       persist_write_int(WEATHER_PERSIST_KEY, value);
-      if (s_canvas)
-        layer_mark_dirty(s_canvas);
+      format_temperature();
     }
   }
   Tuple *uv = dict_find(iter, MESSAGE_KEY_UV_INDEX);
@@ -690,11 +743,7 @@ static void window_unload(Window *window) {
 int main(void) {
   load_frame_settings();
   load_time_format();
-  if (persist_exists(WEATHER_PERSIST_KEY)) {
-    int32_t value = persist_read_int(WEATHER_PERSIST_KEY);
-    if (value >= -150 && value <= 150)
-      snprintf(s_temperature, sizeof(s_temperature), "%ld°C", (long)value);
-  }
+  load_temperature();
   load_uv_index();
   app_message_register_inbox_received(weather_received);
   app_message_register_outbox_failed(weather_outbox_failed);

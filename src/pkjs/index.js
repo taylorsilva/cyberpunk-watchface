@@ -23,6 +23,9 @@ Pebble.addEventListener('webviewclosed', function(event) {
   var timeFormat = settings.TIME_FORMAT;
   if (timeFormat && typeof timeFormat === 'object') timeFormat = timeFormat.value;
   if (/^(12|24)$/.test(String(timeFormat))) payload.TIME_FORMAT = Number(timeFormat);
+  var temperatureUnit = settings.TEMPERATURE_UNIT;
+  if (temperatureUnit && typeof temperatureUnit === 'object') temperatureUnit = temperatureUnit.value;
+  if (/^[01]$/.test(String(temperatureUnit))) payload.TEMPERATURE_UNIT = Number(temperatureUnit);
   if (!Object.keys(payload).length) return;
   Pebble.sendAppMessage(payload, function() {}, function(error) {
     console.log('Settings delivery failed: ' + JSON.stringify(error));
