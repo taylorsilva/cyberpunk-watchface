@@ -384,7 +384,9 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_color(ctx, red());
   graphics_context_set_stroke_width(ctx, 2);
   graphics_draw_line(ctx, GPoint(18, 114), GPoint(w - 9, 114));
-  graphics_draw_line(ctx, GPoint(w - 9, 114), GPoint(w - 9, h - 50));
+  const GRect cyan_bounds = cyan_frame_bounds(0);
+  const int cyan_bottom = cyan_bounds.origin.y + cyan_bounds.size.h - 1;
+  graphics_draw_line(ctx, GPoint(w - 9, 114), GPoint(w - 9, cyan_bottom));
   graphics_draw_line(ctx, GPoint(8, 124), GPoint(18, 114));
   graphics_draw_line(ctx, GPoint(8, 124), GPoint(8, h - 33));
   graphics_draw_line(ctx, GPoint(8, h - 33), GPoint(percentage_x - 6, h - 33));
