@@ -294,7 +294,8 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  const GRect time_frame = GRect(8, 8, w - 16, 75);
+  const int top_depth = 6;
+  const GRect time_frame = GRect(8, 8 + top_depth, w - 16, 75 - top_depth);
   const int frame_left = time_frame.origin.x;
   const int frame_top = time_frame.origin.y;
   const int frame_right = frame_left + time_frame.size.w - 1;
@@ -313,6 +314,20 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_draw_line(ctx, GPoint(frame_left, frame_bottom),
                      GPoint(frame_left, frame_top));
 
+  // The long bottom edge meets the frame; the short top edge sits above it.
+  const int top_left = frame_left - 1;
+  const int top_width = ((time_frame.size.w + 2) * 60 + 50) / 100;
+  graphics_context_set_fill_color(ctx, red());
+  for (int inset = 0; inset <= top_depth; ++inset) {
+    graphics_fill_rect(ctx,
+        GRect(top_left + inset, frame_top - 1 - inset,
+              top_width - 2 * inset, 1),
+        0, GCornerNone);
+  }
+  const GRect time_interior =
+      GRect(frame_left + 1, frame_top + 1,
+            time_frame.size.w - 2, time_frame.size.h - 2);
+
   const int hour_width = text_width(s_hour, s_time_font);
   const int colon_width = text_width(":", s_time_font);
   const int minute_width = text_width(s_minute, s_time_font);
@@ -326,9 +341,10 @@ static void draw_face(Layer *layer, GContext *ctx) {
   const int ink_width =
       hour_width + colon_width + minute_width + 1 - ink_left - ink_right;
   const int time_x =
-      time_frame.origin.x + (time_frame.size.w - ink_width) / 2 - ink_left;
+      time_interior.origin.x + (time_interior.size.w - ink_width) / 2 - ink_left;
   // All digits have visible rows 27-67 relative to the text origin.
-  const int time_y = time_frame.origin.y + (time_frame.size.h - 41) / 2 - 27;
+  const int time_y =
+      time_interior.origin.y + (time_interior.size.h - 41) / 2 - 27;
   draw_text(ctx, s_hour, s_time_font, cyan(), time_x, time_y, hour_width + 2,
             70);
   // Synthetic bold preserves the supplied Book letterforms.
