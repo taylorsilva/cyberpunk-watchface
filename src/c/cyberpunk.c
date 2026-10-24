@@ -14,6 +14,14 @@ static GDrawCommandImage *s_heart;
 static GDrawCommandImage *s_bluetooth_disconnected;
 static bool s_connected;
 static GDrawCommandImage *s_weather_icon;
+static uint32_t s_weather_resource;
+static AppTimer *s_weather_timeout;
+static void set_weather_icon(int32_t code);
+
+static void weather_timed_out(void *context) {
+  s_weather_timeout = NULL;
+  set_weather_icon(-1);
+}
 static char s_temperature[16] = "--°C";
 static char s_uv_index[12] = "--";
 static bool s_js_ready;
@@ -95,6 +103,8 @@ static void receive_time_format(DictionaryIterator *iter) {
 
 static void request_weather(void) {
   s_weather_pending = true;
+  if (!s_weather_timeout)
+    s_weather_timeout = app_timer_register(60000, weather_timed_out, NULL);
   if (!s_connected || !s_js_ready)
     return;
   DictionaryIterator *iter;
@@ -115,7 +125,16 @@ static void request_weather(void) {
 static void weather_received(DictionaryIterator *iter, void *context) {
   receive_frame_settings(iter);
   receive_time_format(iter);
+  Tuple *code = dict_find(iter, MESSAGE_KEY_WEATHER_CODE);
   Tuple *temperature = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
+  if (code || temperature) {
+    if (s_weather_timeout) {
+      app_timer_cancel(s_weather_timeout);
+      s_weather_timeout = NULL;
+    }
+    set_weather_icon(code && (code->type == TUPLE_INT || code->type == TUPLE_UINT) &&
+                     code->length == 4 ? code->value->int32 : -1);
+  }
   if (temperature && (temperature->type == TUPLE_INT || temperature->type == TUPLE_UINT) &&
       temperature->length == 4) {
     int32_t value = temperature->value->int32;
@@ -173,6 +192,49 @@ static bool scale_icon(GDrawCommand *command, uint32_t index, void *context) {
     gdraw_command_set_stroke_width(command, scaled > 0 ? scaled : 1);
   }
   return true;
+}
+
+// Explicit WMO groups: unknown codes must never inherit a nearby number's icon.
+static uint32_t weather_resource(int32_t code) {
+  switch (code) {
+    case 0: case 1: return RESOURCE_ID_WEATHER_SUNNY;
+    // The cloudy asset includes the sun; cloudy-day contains clouds only.
+    case 2: return RESOURCE_ID_WEATHER_CLOUDY;
+    case 3: case 45: case 48: return RESOURCE_ID_WEATHER_CLOUDY_DAY;
+    case 51: case 53: case 55: case 61: case 63: case 80: case 81:
+      return RESOURCE_ID_WEATHER_LIGHT_RAIN;
+    case 65: case 82: case 95: case 96: case 97: case 99:
+      return RESOURCE_ID_WEATHER_HEAVY_RAIN;
+    case 56: case 57: case 66: case 67:
+      return RESOURCE_ID_WEATHER_RAIN_AND_SNOW;
+    case 71: case 73: case 77: case 85:
+      return RESOURCE_ID_WEATHER_LIGHT_SNOW;
+    case 75: case 86: return RESOURCE_ID_WEATHER_HEAVY_SNOW;
+    default: return RESOURCE_ID_WEATHER;
+  }
+}
+
+static void set_weather_icon(int32_t code) {
+  uint32_t resource = weather_resource(code);
+  if (s_weather_icon && resource == s_weather_resource) return;
+  if (s_weather_icon) gdraw_command_image_destroy(s_weather_icon);
+  s_weather_icon = gdraw_command_image_create_with_resource(resource);
+  if (!s_weather_icon && resource != RESOURCE_ID_WEATHER) {
+    resource = RESOURCE_ID_WEATHER;
+    s_weather_icon = gdraw_command_image_create_with_resource(resource);
+  }
+  s_weather_resource = resource;
+  if (s_weather_icon) {
+    GSize size = gdraw_command_image_get_bounds_size(s_weather_icon);
+    int source_size = size.w > size.h ? size.w : size.h;
+    if (source_size > 0) {
+      int scale[] = {source_size, 28};
+      gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_weather_icon),
+                                scale_icon, scale);
+      gdraw_command_image_set_bounds_size(s_weather_icon, GSize(28, 28));
+    }
+  }
+  if (s_canvas) layer_mark_dirty(s_canvas);
 }
 
 static void update_steps(void) {
@@ -547,17 +609,7 @@ static void window_load(Window *window) {
       gdraw_command_image_set_bounds_size(s_shoe, GSize(SHOE_SIZE, SHOE_SIZE));
     }
   }
-  s_weather_icon = gdraw_command_image_create_with_resource(RESOURCE_ID_WEATHER);
-  if (s_weather_icon) {
-    GSize size = gdraw_command_image_get_bounds_size(s_weather_icon);
-    int source_size = size.w > size.h ? size.w : size.h;
-    if (source_size > 0) {
-      int scale[] = {source_size, 28};
-      gdraw_command_list_iterate(gdraw_command_image_get_command_list(s_weather_icon),
-                                scale_icon, scale);
-      gdraw_command_image_set_bounds_size(s_weather_icon, GSize(28, 28));
-    }
-  }
+  set_weather_icon(-1);
   s_heart = gdraw_command_image_create_with_resource(RESOURCE_ID_HEART);
   if (s_heart) {
     GSize size = gdraw_command_image_get_bounds_size(s_heart);
@@ -661,6 +713,10 @@ int main(void) {
   connection_service_subscribe((ConnectionHandlers){
       .pebble_app_connection_handler = connection_handler});
   app_event_loop();
+  if (s_weather_timeout) {
+    app_timer_cancel(s_weather_timeout);
+    s_weather_timeout = NULL;
+  }
   connection_service_unsubscribe();
   health_service_events_unsubscribe();
   tick_timer_service_unsubscribe();

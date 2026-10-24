@@ -9,9 +9,9 @@ A Pebble Time 2 (Emery, 200×228) watchface inspired by the Cyberpunk 2077 video
 There are three cards that can be displayed. Current display options are:
 
 - Steps
-- Heart Rate
-- Current Temperature
-- UV Index
+- Heart rate
+- Current temperature and dominant weather condition of the day
+- UV index
 
 Other features:
 - 12h or 24h Time format selection

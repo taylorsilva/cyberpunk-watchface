@@ -32,12 +32,19 @@ Pebble.addEventListener('webviewclosed', function(event) {
 /* Weather runs on the phone; the watch owns the refresh schedule. */
 var fetching = false;
 
+function unavailableWeather() {
+  Pebble.sendAppMessage({WEATHER_CODE: -1}, function() {}, function(error) {
+    console.log('Weather fallback delivery failed: ' + JSON.stringify(error));
+  });
+}
+
 function getWeather() {
   if (fetching) return;
   fetching = true;
   function fail(reason) {
     fetching = false;
     console.log('Weather: ' + reason);
+    unavailableWeather();
   }
   navigator.geolocation.getCurrentPosition(function(position) {
     var latitude = position.coords.latitude;
@@ -50,12 +57,15 @@ function getWeather() {
       '&longitude=' + encodeURIComponent(longitude);
     var remaining = 2;
     // Finish only after both independent requests (and their deliveries) settle.
-    function request(url, key, readValue) {
+    function request(url, key, readValue, readCode) {
       var finished = false;
       function done(reason) {
         if (finished) return;
         finished = true;
-        if (reason) console.log('Weather ' + key + ': ' + reason);
+        if (reason) {
+          console.log('Weather ' + key + ': ' + reason);
+          if (readCode) unavailableWeather();
+        }
         if (--remaining === 0) fetching = false;
       }
       var xhr = new XMLHttpRequest();
@@ -65,24 +75,35 @@ function getWeather() {
       xhr.ontimeout = function() { done('request timed out'); };
       xhr.onload = function() {
         if (xhr.status !== 200) { done('HTTP ' + xhr.status); return; }
-        var value;
+        var value, data;
         try {
-          value = readValue(JSON.parse(xhr.responseText));
-          if (typeof value !== 'number' || !isFinite(value))
-            throw new Error('invalid value');
+          data = JSON.parse(xhr.responseText);
         } catch (error) { done('invalid response'); return; }
         var payload = {};
-        payload[key] = Math.round(value);
+        if (readCode) payload.WEATHER_CODE = readCode(data);
+        try {
+          value = readValue(data);
+          if (typeof value !== 'number' || !isFinite(value))
+            throw new Error('invalid value');
+        } catch (error) {
+          value = undefined;
+          if (!readCode) { done('invalid response'); return; }
+        }
+        if (typeof value === 'number' && isFinite(value)) payload[key] = Math.round(value);
         Pebble.sendAppMessage(payload, function() { done(); },
           function(error) { done('delivery failed: ' + JSON.stringify(error)); });
       };
       xhr.send();
     }
     request('https://api.open-meteo.com/v1/forecast?' + coordinates +
-      '&current=temperature_2m&temperature_unit=celsius', 'TEMPERATURE', function(data) {
+      '&current=temperature_2m,weather_code&temperature_unit=celsius', 'TEMPERATURE', function(data) {
         var value = data.current.temperature_2m;
         if (value < -150 || value > 150) throw new Error('invalid temperature');
         return value;
+      }, function(data) {
+        var code = data && data.current && data.current.weather_code;
+        return typeof code === 'number' && isFinite(code) &&
+          code >= 0 && code <= 99 && Math.floor(code) === code ? code : -1;
       });
     request('https://air-quality-api.open-meteo.com/v1/air-quality?' + coordinates +
       '&hourly=uv_index&timeformat=unixtime&forecast_days=2', 'UV_INDEX', function(data) {

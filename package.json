@@ -76,6 +76,46 @@
           "type": "raw",
           "name": "WEATHER",
           "file": "pdc/generic-weather.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_SUNNY",
+          "file": "pdc/weather-sunny.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_CLOUDY_DAY",
+          "file": "pdc/weather-cloudy-day.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_CLOUDY",
+          "file": "pdc/weather-cloudy.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_LIGHT_RAIN",
+          "file": "pdc/weather-light-rain.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_HEAVY_RAIN",
+          "file": "pdc/weather-heavy-rain.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_RAIN_AND_SNOW",
+          "file": "pdc/weather-rain-and-snow.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_LIGHT_SNOW",
+          "file": "pdc/weather-light-snow.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_HEAVY_SNOW",
+          "file": "pdc/weather-heavy-snow.pdc"
         }
       ]
     },
@@ -92,7 +132,8 @@
       "FRAME_MIDDLE",
       "FRAME_RIGHT",
       "UV_INDEX",
-      "TIME_FORMAT"
+      "TIME_FORMAT",
+      "WEATHER_CODE"
     ]
   }
 }
