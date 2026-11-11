@@ -44,6 +44,27 @@ enum { FRAME_NONE, FRAME_STEPS, FRAME_HEART_RATE, FRAME_TEMPERATURE, FRAME_UV_IN
 static uint8_t s_frame_contents[FRAME_SLOT_COUNT] = {
     FRAME_STEPS, FRAME_HEART_RATE, FRAME_TEMPERATURE};
 
+enum { WEATHER_TEMPERATURE = 1, WEATHER_UV = 2 };
+
+static uint32_t displayed_contents(void) {
+  uint32_t contents = 0;
+  for (unsigned i = 0; i < FRAME_SLOT_COUNT; ++i)
+    if (s_frame_contents[i] != FRAME_NONE)
+      contents |= 1u << s_frame_contents[i];
+  return contents;
+}
+
+static bool frame_displayed(unsigned content) {
+  return (displayed_contents() & (1u << content)) != 0;
+}
+
+static uint8_t displayed_weather(void) {
+  return (frame_displayed(FRAME_TEMPERATURE) ? WEATHER_TEMPERATURE : 0) |
+         (frame_displayed(FRAME_UV_INDEX) ? WEATHER_UV : 0);
+}
+
+static void refresh_card_services(uint32_t previous_contents);
+
 static void load_frame_settings(void) {
   for (unsigned i = 0; i < FRAME_SLOT_COUNT; ++i) {
     if (persist_exists(FRAME_PERSIST_BASE + i)) {
@@ -119,7 +140,7 @@ static void format_temperature(void) {
     }
     snprintf(s_temperature, sizeof(s_temperature), "%ld°%s", (long)value, unit);
   }
-  if (s_canvas)
+  if (s_canvas && frame_displayed(FRAME_TEMPERATURE))
     layer_mark_dirty(s_canvas);
 }
 
@@ -154,20 +175,23 @@ static void receive_temperature_unit(DictionaryIterator *iter) {
 }
 
 static void request_weather(void) {
+  uint8_t fields = displayed_weather();
+  if (!fields)
+    return;
   s_weather_pending = true;
-  if (!s_weather_timeout)
-    s_weather_timeout = app_timer_register(60000, weather_timed_out, NULL);
   if (!s_connected || !s_js_ready)
     return;
   DictionaryIterator *iter;
   AppMessageResult result = app_message_outbox_begin(&iter);
   if (result == APP_MSG_OK) {
-    dict_write_uint8(iter, MESSAGE_KEY_REQUEST_WEATHER, 1);
+    dict_write_uint8(iter, MESSAGE_KEY_REQUEST_WEATHER, fields);
     result = app_message_outbox_send();
   }
   if (result == APP_MSG_OK) {
     s_weather_pending = false;
     s_weather_attempt = time(NULL);
+    if ((fields & WEATHER_TEMPERATURE) && !s_weather_timeout)
+      s_weather_timeout = app_timer_register(60000, weather_timed_out, NULL);
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Weather refresh requested");
   } else {
     APP_LOG(APP_LOG_LEVEL_WARNING, "Weather request failed: %d", result);
@@ -175,6 +199,7 @@ static void request_weather(void) {
 }
 
 static void weather_received(DictionaryIterator *iter, void *context) {
+  uint32_t previous_contents = displayed_contents();
   receive_frame_settings(iter);
   receive_time_format(iter);
   receive_temperature_unit(iter);
@@ -204,16 +229,21 @@ static void weather_received(DictionaryIterator *iter, void *context) {
     if (value >= 0 && value <= 100) {
       snprintf(s_uv_index, sizeof(s_uv_index), "%ld", (long)value);
       persist_write_int(UV_PERSIST_KEY, value);
-      if (s_canvas)
+      if (s_canvas && frame_displayed(FRAME_UV_INDEX))
         layer_mark_dirty(s_canvas);
     }
   }
+  bool became_ready = false;
   if (dict_find(iter, MESSAGE_KEY_JS_READY)) {
     bool was_ready = s_js_ready;
     s_js_ready = true;
-    if (!was_ready || s_weather_pending)
-      request_weather();
+    became_ready = !was_ready;
   }
+  // Reconcile once after all settings and readiness fields have been applied.
+  if (previous_contents != displayed_contents())
+    refresh_card_services(previous_contents);
+  else if (became_ready || (s_js_ready && s_weather_pending))
+    request_weather();
 }
 
 static void weather_outbox_failed(DictionaryIterator *iter,
@@ -287,10 +317,11 @@ static void set_weather_icon(int32_t code) {
       gdraw_command_image_set_bounds_size(s_weather_icon, GSize(28, 28));
     }
   }
-  if (s_canvas) layer_mark_dirty(s_canvas);
+  if (s_canvas && frame_displayed(FRAME_TEMPERATURE)) layer_mark_dirty(s_canvas);
 }
 
 static void update_steps(void) {
+  if (!frame_displayed(FRAME_STEPS)) return;
   time_t now = time(NULL);
   HealthServiceAccessibilityMask access = health_service_metric_accessible(
       HealthMetricStepCount, time_start_of_today(), now);
@@ -310,6 +341,7 @@ static void update_steps(void) {
 }
 
 static void update_heart_rate(void) {
+  if (!frame_displayed(FRAME_HEART_RATE)) return;
   time_t now = time(NULL);
   HealthServiceAccessibilityMask access = health_service_metric_accessible(
       HealthMetricHeartRateBPM, now, now);
@@ -329,6 +361,31 @@ static void health_handler(HealthEventType event, void *context) {
     update_steps();
   if (event == HealthEventHeartRateUpdate || event == HealthEventSignificantUpdate)
     update_heart_rate();
+}
+
+static bool s_health_subscribed;
+
+static void refresh_card_services(uint32_t previous_contents) {
+  uint32_t contents = displayed_contents();
+  uint32_t added = contents & ~previous_contents;
+  bool needs_health = frame_displayed(FRAME_STEPS) || frame_displayed(FRAME_HEART_RATE);
+  if (needs_health && !s_health_subscribed)
+    s_health_subscribed = health_service_events_subscribe(health_handler, NULL);
+  else if (!needs_health && s_health_subscribed) {
+    health_service_events_unsubscribe();
+    s_health_subscribed = false;
+  }
+  if (added & (1u << FRAME_STEPS)) update_steps();
+  if (added & (1u << FRAME_HEART_RATE)) update_heart_rate();
+  if (!frame_displayed(FRAME_TEMPERATURE) && s_weather_timeout) {
+    app_timer_cancel(s_weather_timeout);
+    s_weather_timeout = NULL;
+  }
+  if (!displayed_weather())
+    s_weather_pending = false;
+  else if ((added & ((1u << FRAME_TEMPERATURE) | (1u << FRAME_UV_INDEX))) ||
+           s_weather_pending)
+    request_weather();
 }
 
 static GColor cyan(void) { return GColorFromHEX(0x00ffff); }
@@ -699,8 +756,6 @@ static void window_load(Window *window) {
   time_t now = time(NULL);
   update_time(localtime(&now));
   battery_handler(battery_state_service_peek());
-  update_steps();
-  update_heart_rate();
 }
 
 static void window_unload(Window *window) {
@@ -758,7 +813,7 @@ int main(void) {
   window_stack_push(s_window, false);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
-  health_service_events_subscribe(health_handler, NULL);
+  refresh_card_services(0);
   connection_service_subscribe((ConnectionHandlers){
       .pebble_app_connection_handler = connection_handler});
   app_event_loop();
@@ -767,7 +822,7 @@ int main(void) {
     s_weather_timeout = NULL;
   }
   connection_service_unsubscribe();
-  health_service_events_unsubscribe();
+  if (s_health_subscribed) health_service_events_unsubscribe();
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
   app_message_deregister_callbacks();

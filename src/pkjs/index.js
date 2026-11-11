@@ -32,8 +32,12 @@ Pebble.addEventListener('webviewclosed', function(event) {
   });
 });
 
-/* Weather runs on the phone; the watch owns the refresh schedule. */
+/* The watch owns the schedule and selects displayed fields: temperature=1, UV=2. */
 var fetching = false;
+var activeFields = 0;
+var queuedFields = 0;
+var WEATHER_TEMPERATURE = 1;
+var WEATHER_UV = 2;
 
 function unavailableWeather() {
   Pebble.sendAppMessage({WEATHER_CODE: -1}, function() {}, function(error) {
@@ -41,13 +45,26 @@ function unavailableWeather() {
   });
 }
 
-function getWeather() {
-  if (fetching) return;
+function getWeather(fields) {
+  if (typeof fields !== 'number' || fields !== Math.floor(fields) || fields < 1 || fields > 3)
+    return;
+  if (fetching) {
+    queuedFields |= fields & ~activeFields;
+    return;
+  }
   fetching = true;
-  function fail(reason) {
+  activeFields = fields;
+  function finish() {
     fetching = false;
+    activeFields = 0;
+    var next = queuedFields;
+    queuedFields = 0;
+    if (next) getWeather(next);
+  }
+  function fail(reason) {
     console.log('Weather: ' + reason);
-    unavailableWeather();
+    if (fields & WEATHER_TEMPERATURE) unavailableWeather();
+    finish();
   }
   navigator.geolocation.getCurrentPosition(function(position) {
     var latitude = position.coords.latitude;
@@ -58,8 +75,9 @@ function getWeather() {
     }
     var coordinates = 'latitude=' + encodeURIComponent(latitude) +
       '&longitude=' + encodeURIComponent(longitude);
-    var remaining = 2;
-    // Finish only after both independent requests (and their deliveries) settle.
+    var remaining = ((fields & WEATHER_TEMPERATURE) ? 1 : 0) +
+      ((fields & WEATHER_UV) ? 1 : 0);
+    // Finish after all selected requests and their deliveries settle.
     function request(url, key, readValue, readCode) {
       var finished = false;
       function done(reason) {
@@ -69,7 +87,7 @@ function getWeather() {
           console.log('Weather ' + key + ': ' + reason);
           if (readCode) unavailableWeather();
         }
-        if (--remaining === 0) fetching = false;
+        if (--remaining === 0) finish();
       }
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
@@ -98,7 +116,7 @@ function getWeather() {
       };
       xhr.send();
     }
-    request('https://api.open-meteo.com/v1/forecast?' + coordinates +
+    if (fields & WEATHER_TEMPERATURE) request('https://api.open-meteo.com/v1/forecast?' + coordinates +
       '&current=temperature_2m,weather_code&temperature_unit=celsius', 'TEMPERATURE', function(data) {
         var value = data.current.temperature_2m;
         if (value < -150 || value > 150) throw new Error('invalid temperature');
@@ -108,7 +126,7 @@ function getWeather() {
         return typeof code === 'number' && isFinite(code) &&
           code >= 0 && code <= 99 && Math.floor(code) === code ? code : -1;
       });
-    request('https://air-quality-api.open-meteo.com/v1/air-quality?' + coordinates +
+    if (fields & WEATHER_UV) request('https://air-quality-api.open-meteo.com/v1/air-quality?' + coordinates +
       '&hourly=uv_index&timeformat=unixtime&forecast_days=2', 'UV_INDEX', function(data) {
         var now = Math.floor(Date.now() / 1000);
         var times = data.hourly.time;
@@ -136,5 +154,5 @@ function notifyReady() {
 }
 Pebble.addEventListener('ready', notifyReady);
 Pebble.addEventListener('appmessage', function(event) {
-  if (event.payload.REQUEST_WEATHER) getWeather();
+  getWeather(event.payload.REQUEST_WEATHER);
 });
