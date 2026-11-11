@@ -322,26 +322,30 @@ static void set_weather_icon(int32_t code) {
 
 static void update_steps(void) {
   if (!frame_displayed(FRAME_STEPS)) return;
+  char value[sizeof(s_steps)];
   time_t now = time(NULL);
   HealthServiceAccessibilityMask access = health_service_metric_accessible(
       HealthMetricStepCount, time_start_of_today(), now);
   if (access & HealthServiceAccessibilityMaskAvailable) {
     HealthValue steps = health_service_sum_today(HealthMetricStepCount);
     if (steps >= 1000) {
-      snprintf(s_steps, sizeof(s_steps), "%ld.%ldk", (long)(steps / 1000),
+      snprintf(value, sizeof(value), "%ld.%ldk", (long)(steps / 1000),
                (long)((steps % 1000) / 100));
     } else {
-      snprintf(s_steps, sizeof(s_steps), "%ld", (long)(steps < 0 ? 0 : steps));
+      snprintf(value, sizeof(value), "%ld", (long)(steps < 0 ? 0 : steps));
     }
   } else {
-    snprintf(s_steps, sizeof(s_steps), "--");
+    snprintf(value, sizeof(value), "--");
   }
-  if (s_canvas)
-    layer_mark_dirty(s_canvas);
+  if (strcmp(value, s_steps) != 0) {
+    strcpy(s_steps, value);
+    if (s_canvas) layer_mark_dirty(s_canvas);
+  }
 }
 
 static void update_heart_rate(void) {
   if (!frame_displayed(FRAME_HEART_RATE)) return;
+  char value[sizeof(s_heart_rate)];
   time_t now = time(NULL);
   HealthServiceAccessibilityMask access = health_service_metric_accessible(
       HealthMetricHeartRateBPM, now, now);
@@ -349,11 +353,13 @@ static void update_heart_rate(void) {
   if (access & HealthServiceAccessibilityMaskAvailable)
     heart_rate = health_service_peek_current_value(HealthMetricHeartRateBPM);
   if (heart_rate > 0)
-    snprintf(s_heart_rate, sizeof(s_heart_rate), "%ld", (long)heart_rate);
+    snprintf(value, sizeof(value), "%ld", (long)heart_rate);
   else
-    snprintf(s_heart_rate, sizeof(s_heart_rate), "--");
-  if (s_canvas)
-    layer_mark_dirty(s_canvas);
+    snprintf(value, sizeof(value), "--");
+  if (strcmp(value, s_heart_rate) != 0) {
+    strcpy(s_heart_rate, value);
+    if (s_canvas) layer_mark_dirty(s_canvas);
+  }
 }
 
 static void health_handler(HealthEventType event, void *context) {
@@ -659,9 +665,15 @@ static void update_time(struct tm *now) {
     layer_mark_dirty(s_canvas);
 }
 
+static bool weather_refresh_due(void) {
+  time_t now = time(NULL);
+  return s_weather_pending || !s_weather_attempt || now < s_weather_attempt ||
+         now - s_weather_attempt >= WEATHER_INTERVAL;
+}
+
 static void tick_handler(struct tm *now, TimeUnits changed) {
   update_time(now);
-  if (s_weather_pending || time(NULL) - s_weather_attempt >= WEATHER_INTERVAL)
+  if (weather_refresh_due())
     request_weather();
   update_steps();
   update_heart_rate();
@@ -679,7 +691,7 @@ static void connection_handler(bool connected) {
     vibes_short_pulse();
   bool reconnected = !s_connected && connected;
   s_connected = connected;
-  if (reconnected)
+  if (reconnected && weather_refresh_due())
     request_weather();
   if (s_canvas)
     layer_mark_dirty(s_canvas);

@@ -144,12 +144,27 @@ function getWeather(fields) {
   {enableHighAccuracy: false, timeout: 15000, maximumAge: 0});
 }
 
+var readyRetryTimer = null;
+var readyRetryDelay = 5000;
+var readyInFlight = false;
+var readyDelivered = false;
 function notifyReady() {
-  Pebble.sendAppMessage({JS_READY: 1}, function() {}, function(error) {
+  if (readyDelivered || readyInFlight || readyRetryTimer !== null) return;
+  readyInFlight = true;
+  Pebble.sendAppMessage({JS_READY: 1}, function() {
+    readyInFlight = false;
+    readyDelivered = true;
+    if (readyRetryTimer !== null) clearTimeout(readyRetryTimer);
+    readyRetryTimer = null;
+    readyRetryDelay = 5000;
+  }, function(error) {
+    readyInFlight = false;
     console.log('Weather readiness delivery failed: ' + JSON.stringify(error));
-    // Startup may happen while Bluetooth is disconnected. Keep trying the
-    // handshake so a later reconnect can unblock the watch's pending refresh.
-    setTimeout(notifyReady, 5000);
+    readyRetryTimer = setTimeout(function() {
+      readyRetryTimer = null;
+      notifyReady();
+    }, readyRetryDelay);
+    readyRetryDelay = Math.min(readyRetryDelay * 2, 60000);
   });
 }
 Pebble.addEventListener('ready', notifyReady);

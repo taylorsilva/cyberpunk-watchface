@@ -11,7 +11,8 @@ function harness() {
       throw new Error(name);
     },
     console: {log() {}},
-    setTimeout(fn) { timers.push(fn); },
+    setTimeout(fn, delay) { fn.delay = delay; timers.push(fn); return fn; },
+    clearTimeout(fn) { const i = timers.indexOf(fn); if (i >= 0) timers.splice(i, 1); },
     navigator: {geolocation: {getCurrentPosition(ok, fail, options) {
       locations.push({ok, fail, options});
     }}},
@@ -146,3 +147,20 @@ assert(switched.requests[1].url.includes('air-quality-api'));
 switched.requests[1].onerror(); switched.refresh(2);
 assert.equal(switched.locations.length, 3);
 console.log('Displayed weather selection, overlap, validation, and selective failure checks passed');
+
+const retry = harness();
+retry.events.ready(); retry.events.ready();
+assert.equal(retry.messages.length, 1);
+for (const delay of [5000, 10000, 20000, 40000, 60000, 60000]) {
+  retry.messages.at(-1).fail({message: 'offline'});
+  retry.events.ready();
+  assert.equal(retry.timers.length, 1);
+  assert.equal(retry.timers[0].delay, delay);
+  retry.timers.shift()();
+}
+retry.messages.at(-1).ok();
+const deliveredCount = retry.messages.length;
+retry.events.ready();
+assert.equal(retry.messages.length, deliveredCount);
+assert.equal(retry.timers.length, 0);
+console.log('Readiness backoff and duplicate-event checks passed');
