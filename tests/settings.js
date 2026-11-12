@@ -82,3 +82,23 @@ assert.equal(messages.length, beforeInvalidUnit);
 fire('webviewclosed', {response: JSON.stringify({TEMPERATURE_UNIT: '1', FRAME_LEFT: '3'})});
 assert.equal(JSON.stringify(messages.at(-1)), JSON.stringify({FRAME_LEFT: 3, TEMPERATURE_UNIT: 1}));
 console.log('Temperature unit settings, persistence, and validation passed');
+
+const battery = items.find(x => x.messageKey === 'BATTERY_SOURCE');
+assert.equal(battery.defaultValue, '0');
+assert.deepEqual(battery.options.map(x => x.value), ['0', '1']);
+assert.deepEqual(battery.options.map(x => x.label), ['Watch battery', 'Phone battery']);
+for (const value of ['0', '1']) {
+  fire('webviewclosed', {response: JSON.stringify({BATTERY_SOURCE: {value}})});
+  assert.equal(JSON.stringify(messages.at(-1)), JSON.stringify({BATTERY_SOURCE: Number(value)}));
+  assert.equal(JSON.parse(storage['clay-settings']).BATTERY_SOURCE, value);
+  fire('showConfiguration');
+  assert(new RegExp('BATTERY_SOURCE:\\s*"' + value + '"').test(decodeURIComponent(urls.at(-1))));
+}
+const beforeInvalidBattery = messages.length;
+for (const value of ['2', '-1', '1x', '', null]) {
+  fire('webviewclosed', {response: JSON.stringify({BATTERY_SOURCE: value})});
+}
+assert.equal(messages.length, beforeInvalidBattery);
+fire('webviewclosed', {response: JSON.stringify({BATTERY_SOURCE: '1', FRAME_LEFT: '3'})});
+assert.equal(JSON.stringify(messages.at(-1)), JSON.stringify({FRAME_LEFT: 3, BATTERY_SOURCE: 1}));
+console.log('Battery source setting, persistence, and validation passed');
