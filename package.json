@@ -134,7 +134,9 @@
       "UV_INDEX",
       "TIME_FORMAT",
       "WEATHER_CODE",
-      "TEMPERATURE_UNIT"
+      "TEMPERATURE_UNIT",
+      "BATTERY_SOURCE",
+      "PHONE_BATTERY"
     ]
   }
 }

@@ -198,11 +198,66 @@ static void request_weather(void) {
   }
 }
 
+enum { BATTERY_SOURCE_WATCH = 0, BATTERY_SOURCE_PHONE = 1,
+       BATTERY_SOURCE_PERSIST_KEY = 5 };
+static uint8_t s_battery_source = BATTERY_SOURCE_WATCH;
+static uint8_t s_phone_battery;
+static bool s_has_phone_battery;
+
+static void load_battery_source(void) {
+  if (persist_exists(BATTERY_SOURCE_PERSIST_KEY)) {
+    int32_t value = persist_read_int(BATTERY_SOURCE_PERSIST_KEY);
+    if (value == BATTERY_SOURCE_WATCH || value == BATTERY_SOURCE_PHONE)
+      s_battery_source = value;
+  }
+}
+
+static void receive_battery_source(DictionaryIterator *iter) {
+  Tuple *tuple = dict_find(iter, MESSAGE_KEY_BATTERY_SOURCE);
+  if (!tuple || (tuple->type != TUPLE_INT && tuple->type != TUPLE_UINT) ||
+      tuple->length != 4)
+    return;
+  int32_t value = tuple->value->int32;
+  if ((value == BATTERY_SOURCE_WATCH || value == BATTERY_SOURCE_PHONE) &&
+      value != s_battery_source) {
+    s_battery_source = value;
+    persist_write_int(BATTERY_SOURCE_PERSIST_KEY, value);
+    if (s_canvas)
+      layer_mark_dirty(s_canvas);
+  }
+}
+
+static void receive_phone_battery(DictionaryIterator *iter) {
+  Tuple *tuple = dict_find(iter, MESSAGE_KEY_PHONE_BATTERY);
+  if (!tuple || (tuple->type != TUPLE_INT && tuple->type != TUPLE_UINT) ||
+      tuple->length != 4)
+    return;
+  int32_t value = tuple->value->int32;
+  if (value < 0 || value > 100)
+    return;
+  s_phone_battery = value;
+  s_has_phone_battery = true;
+  if (s_canvas && s_battery_source == BATTERY_SOURCE_PHONE)
+    layer_mark_dirty(s_canvas);
+}
+
+/* Use the last phone reading until the battery setting or connection changes. */
+static bool bar_shows_phone(void) {
+  return s_battery_source == BATTERY_SOURCE_PHONE && s_connected &&
+         s_has_phone_battery;
+}
+
+static uint8_t bar_battery(void) {
+  return bar_shows_phone() ? s_phone_battery : s_battery;
+}
+
 static void weather_received(DictionaryIterator *iter, void *context) {
   uint32_t previous_contents = displayed_contents();
   receive_frame_settings(iter);
   receive_time_format(iter);
   receive_temperature_unit(iter);
+  receive_battery_source(iter);
+  receive_phone_battery(iter);
   Tuple *code = dict_find(iter, MESSAGE_KEY_WEATHER_CODE);
   Tuple *temperature = dict_find(iter, MESSAGE_KEY_TEMPERATURE);
   if (code || temperature) {
@@ -396,6 +451,29 @@ static void refresh_card_services(uint32_t previous_contents) {
 
 static GColor cyan(void) { return GColorFromHEX(0x00ffff); }
 static GColor red(void) { return GColorFromHEX(0xff0000); }
+
+/* Phone readings turn cyan above 40%; the watch fallback stays red. */
+static GColor bar_color(void) {
+  return bar_shows_phone() && s_phone_battery > 40 ? cyan() : red();
+}
+
+/* The outline remains visible even when the battery is empty. */
+static void draw_battery_bar(GContext *ctx, GRect bar) {
+  const GColor color = bar_color();
+  const uint8_t value = bar_battery();
+  const int interior_width = bar.size.w - 2;
+  const int fill_width = interior_width * value / 100;
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_fill_color(ctx, color);
+  if (fill_width > 0) {
+    graphics_fill_rect(
+        ctx,
+        GRect(bar.origin.x + 1, bar.origin.y + 1, fill_width, bar.size.h - 2),
+        0, GCornerNone);
+  }
+  graphics_draw_rect(ctx, bar);
+}
 
 static int text_width(const char *text, GFont font) {
   return graphics_text_layout_get_content_size(
@@ -630,22 +708,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
     slot->render(ctx, cyan_frame_bounds(i), slot->context);
   }
 
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_context_set_stroke_color(ctx, red());
-  // The outline remains visible even when the battery is empty.
-  const GRect bar = GRect(8, h - 18, w - 16, 10);
-  const int interior_width = bar.size.w - 2;
-  const int fill_width = interior_width * s_battery / 100;
-  graphics_context_set_fill_color(ctx, red());
-  if (fill_width > 0) {
-    graphics_fill_rect(
-        ctx,
-        GRect(bar.origin.x + 1, bar.origin.y + 1, fill_width, bar.size.h - 2),
-        0, GCornerNone);
-  }
-  graphics_context_set_stroke_color(ctx, red());
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_rect(ctx, bar);
+  draw_battery_bar(ctx, GRect(8, h - 18, w - 16, 10));
   draw_text(ctx, percentage, s_battery_font, GColorWhite, percentage_x, h - 46,
             percentage_width + 1, 26);
 }
@@ -812,6 +875,7 @@ int main(void) {
   load_time_format();
   load_temperature();
   load_uv_index();
+  load_battery_source();
   app_message_register_inbox_received(weather_received);
   app_message_register_outbox_failed(weather_outbox_failed);
   app_message_open(128, 128);

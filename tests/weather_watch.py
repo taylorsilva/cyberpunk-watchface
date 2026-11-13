@@ -4,10 +4,11 @@ import subprocess
 import tempfile
 
 source = Path('src/c/cyberpunk.c').read_text()
-def function(name):
-    start = source.index('static void ' + name + '(')
+def function(name, kind='void'):
+    marker = 'static ' + kind + ' ' + name + '('
+    start = source.index(marker)
     if ';' in source[start:source.index('\n', start)]:
-        start = source.index('static void ' + name + '(', start+1)
+        start = source.index(marker, start+1)
     end = source.index('\n}', start) + 2
     return source[start:end]
 
@@ -122,8 +123,11 @@ int main(void) {
 with tempfile.TemporaryDirectory() as directory:
     path = Path(directory)
     frames = source[source.index('enum { FRAME_NONE'):source.index('static void load_frame_settings')]
-    (path / 'test.c').write_text(stub + frames + 'static bool s_health_subscribed;\n' + '\n'.join(function(n) for n in
-        ['weather_timed_out', 'request_weather', 'update_steps', 'update_heart_rate', 'health_handler', 'refresh_card_services', 'tick_handler', 'connection_handler']) + main)
+    functions = ['weather_timed_out', 'request_weather', 'update_steps', 'update_heart_rate',
+                 'health_handler', 'refresh_card_services', 'tick_handler', 'connection_handler']
+    (path / 'test.c').write_text(stub + frames + 'static bool s_health_subscribed;\n' +
+        function('weather_refresh_due', 'bool') + '\n' +
+        '\n'.join(function(n) for n in functions) + main)
     subprocess.run(['cc', '-o', str(path / 'test'), str(path / 'test.c')], check=True)
     subprocess.run([str(path / 'test')], check=True)
 print('Watch startup, hourly, reconnect, offline, and transport checks passed')

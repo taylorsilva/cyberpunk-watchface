@@ -37,6 +37,8 @@ static char s_temperature[16]="--°C", s_uv_index[12];
 static void layer_mark_dirty(void *canvas) {++redraws;}
 static void receive_frame_settings(DictionaryIterator *i) {}
 static void receive_time_format(DictionaryIterator *i) {}
+static void receive_battery_source(DictionaryIterator *i) {}
+static void receive_phone_battery(DictionaryIterator *i) {}
 static void request_weather(void) {}
 static void set_weather_icon(int32_t code) {}
 static void app_timer_cancel(void *timer) {}

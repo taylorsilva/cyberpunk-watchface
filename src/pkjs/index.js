@@ -26,11 +26,69 @@ Pebble.addEventListener('webviewclosed', function(event) {
   var temperatureUnit = settings.TEMPERATURE_UNIT;
   if (temperatureUnit && typeof temperatureUnit === 'object') temperatureUnit = temperatureUnit.value;
   if (/^[01]$/.test(String(temperatureUnit))) payload.TEMPERATURE_UNIT = Number(temperatureUnit);
+  var batterySourceSetting = settings.BATTERY_SOURCE;
+  if (batterySourceSetting && typeof batterySourceSetting === 'object')
+    batterySourceSetting = batterySourceSetting.value;
+  if (/^[01]$/.test(String(batterySourceSetting)))
+    payload.BATTERY_SOURCE = Number(batterySourceSetting);
   if (!Object.keys(payload).length) return;
   Pebble.sendAppMessage(payload, function() {}, function(error) {
     console.log('Settings delivery failed: ' + JSON.stringify(error));
   });
 });
+
+/* Android's PebbleKit JS runner is a WebView, so the W3C Battery Status API is
+ * available there. iOS has no equivalent; the watch falls back to its own
+ * battery whenever no phone reading is available. */
+var phoneBattery = null;
+var phoneBatteryStarted = false;
+
+function deliverPhoneBattery() {
+  if (!phoneBattery)
+    return;
+  var level = phoneBattery.level;
+  if (typeof level !== 'number' || !isFinite(level))
+    return;
+  level = Math.round(level * 100);
+  if (level < 0) level = 0;
+  if (level > 100) level = 100;
+  Pebble.sendAppMessage({PHONE_BATTERY: level}, function() {},
+    function(error) {
+      console.log('Phone battery delivery failed: ' + JSON.stringify(error));
+    });
+}
+
+function watchPhoneBattery() {
+  if (phoneBatteryStarted)
+    return;
+  if (typeof navigator === 'undefined' ||
+      typeof navigator.getBattery !== 'function') {
+    console.log('Phone battery unavailable on this platform');
+    return;
+  }
+  var request;
+  try {
+    request = navigator.getBattery();
+  } catch (error) {
+    console.log('Phone battery unavailable: ' + error.message);
+    return;
+  }
+  if (!request || typeof request.then !== 'function') {
+    console.log('Phone battery API returned no promise');
+    return;
+  }
+  phoneBatteryStarted = true;
+  request.then(function(battery) {
+    phoneBattery = battery;
+    deliverPhoneBattery();
+    if (battery && typeof battery.addEventListener === 'function')
+      battery.addEventListener('levelchange', deliverPhoneBattery);
+  }, function(error) {
+    phoneBatteryStarted = false; // Retry on the next ready event.
+    console.log('Phone battery unavailable: ' +
+      (error && error.message ? error.message : error));
+  });
+}
 
 /* The watch owns the schedule and selects displayed fields: temperature=1, UV=2. */
 var fetching = false;
@@ -167,7 +225,10 @@ function notifyReady() {
     readyRetryDelay = Math.min(readyRetryDelay * 2, 60000);
   });
 }
-Pebble.addEventListener('ready', notifyReady);
+Pebble.addEventListener('ready', function() {
+  notifyReady();
+  watchPhoneBattery();
+});
 Pebble.addEventListener('appmessage', function(event) {
   getWeather(event.payload.REQUEST_WEATHER);
 });

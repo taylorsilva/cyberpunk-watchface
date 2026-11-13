@@ -40,6 +40,8 @@ static void layer_mark_dirty(void *layer) {++redraws;}
 static void receive_frame_settings(DictionaryIterator *iter) {}
 static void receive_time_format(DictionaryIterator *iter) {}
 static void receive_temperature_unit(DictionaryIterator *iter) {}
+static void receive_battery_source(DictionaryIterator *iter) {}
+static void receive_phone_battery(DictionaryIterator *iter) {}
 static int32_t s_temperature_celsius;
 static bool s_has_temperature;
 static void format_temperature(void) {layer_mark_dirty(s_canvas);}

@@ -37,8 +37,28 @@
             "value": "1"
           }
         ]
+      },
+      {
+        "type": "select",
+        "messageKey": "BATTERY_SOURCE",
+        "label": "Battery bar",
+        "defaultValue": "0",
+        "options": [
+          {
+            "label": "Watch battery",
+            "value": "0"
+          },
+          {
+            "label": "Phone battery",
+            "value": "1"
+          }
+        ]
       }
     ]
+  },
+  {
+    "type": "text",
+    "defaultValue": "The battery bar can show the watch or phone battery. The percentage always shows the watch battery. Phone battery requires the Android Pebble app; when unavailable, the bar falls back to the watch battery."
   },
   {
     "type": "text",
